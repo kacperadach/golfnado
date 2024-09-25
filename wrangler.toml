@@ -1,0 +1,7 @@
+name = "golfnado"
+main = "src/index.ts"
+compatibility_date = "2024-08-30"
+node_compat = true
+[[r2_buckets]]
+binding = 'GOLFNADO_BUCKET' 
+bucket_name = 'golfnado'
