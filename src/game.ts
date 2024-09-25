@@ -512,7 +512,7 @@ export class Golfnado {
 
     const currentPlayerStrokes = currentHole.strokes[currentPlayerIndex];
 
-    const stroke = this.calculateStrokeV2(
+    const stroke = this.calculateStroke(
       swing,
       currentHole.course,
       currentPlayerStrokes
@@ -564,51 +564,6 @@ export class Golfnado {
       gameState: this.gameState,
     };
   }
-
-  // private async playGame(): Promise<void> {
-  //   let rl = readline.createInterface({
-  //     input: process.stdin,
-  //     output: process.stdout,
-  //   });
-  //   while (this.currentHole < this.holes.length) {
-  //     const currentHole = this.holes[this.currentHole];
-  //     const currentPlayerIndex = this.getCurrentPlayer(currentHole);
-
-  //     if (currentPlayerIndex === null) {
-  //       this.currentHole += 1;
-  //       continue;
-  //     }
-
-  //     this.drawHole(currentHole);
-
-  //     const currentPlayerStrokes = currentHole.strokes[currentPlayerIndex];
-
-  //     let swing: Swing | null = null;
-  //     while (swing === null) {
-  //       swing = this.parseSwing(
-  //         await this.askQuestion(
-  //           rl,
-  //           `Player ${currentPlayerIndex + 1} turn, swing ${
-  //             currentPlayerStrokes.length + 1
-  //           }. Swing! Format: {Club} {Power} {Direction (degrees)} `
-  //         )
-  //       );
-  //     }
-
-  //     const stroke = this.calculateStroke(
-  //       swing,
-  //       currentHole.course,
-  //       currentPlayerStrokes
-  //     );
-
-  //     currentHole.strokes[currentPlayerIndex].push(stroke);
-  //     const endGround = currentHole.course.terrain[stroke.end.y][stroke.end.x];
-
-  //     console.log(`You landed in ${Ground[endGround]}`);
-  //   }
-
-  //   rl.close();
-  // }
 
   public getCurrentPlayer(): Player | null {
     if (this.gameState !== GameState.STARTED) {
@@ -665,7 +620,7 @@ export class Golfnado {
     return minimum;
   }
 
-  private calculateStrokeV2(
+  private calculateStroke(
     swing: Swing,
     course: Course,
     strokes: Stroke[]
@@ -827,26 +782,21 @@ export class Golfnado {
 
             if (upHeight > downHeight) {
               // move down
-              // console.log("slope down");
               slopeVector = new Vector3D(0, slopeVelocityMagnitude, 0);
             } else if (downHeight > upHeight) {
               // move left
-              // console.log("slope up");
               slopeVector = new Vector3D(0, -slopeVelocityMagnitude, 0);
             }
           }
         }
       }
 
-      const gravity = GRAVITY;
-
       if (ballPosition.z > newElevation.height) {
-        // console.log("gravity");
-        z -= gravity; // gravity
+        z -= GRAVITY; // gravity
       } else if (ballPosition.z <= newElevation.height) {
         if (Math.abs(ballVelocity.z) >= BOUNCE_THRESHOLD) {
           if (ballVelocity.z <= 0) {
-            // console.log("bounce");
+            // bounce
             x =
               -1 * (ballVelocity.x / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
             y =
@@ -857,11 +807,11 @@ export class Golfnado {
                 ballVelocity.z * GROUND_BOUNCE_RATIO[newGround]);
           }
         } else {
-          // console.log("cancel z");
+          // cancel z
           z = -1 * ballVelocity.z;
         }
       } else {
-        // console.log("cancel z");
+        // cancel z
         z = -1 * ballVelocity.z; // cancel it out
       }
 
@@ -879,35 +829,11 @@ export class Golfnado {
         ballVelocityVector.y !== 0 ||
         ballVelocityVector.z !== 0)
     ) {
-      // Calculate the length of the velocity vector (i.e., the total speed)
-      // const velocityMagnitude = Math.sqrt(
-      //   ballVelocityVector.x ** 2 + ballVelocityVector.y ** 2
-      // );
-
-      // Normalize the velocity vector to get the direction of movement
-      // const normalizedVelocity = new Vector3D(
-      //   velocityMagnitude !== 0 ? ballVelocityVector.x / velocityMagnitude : 0,
-      //   velocityMagnitude !== 0 ? ballVelocityVector.y / velocityMagnitude : 0,
-      //   0
-      // );
-      // console.log(
-      //   `normalized velocity x=${normalizedVelocity.x} y=${normalizedVelocity.y} z=${normalizedVelocity.z} velocityMag=${velocityMagnitude}`
-      // );
-
       ballPositionVector.x +=
         ballVelocityVector.x / VELOCITY_POSITION_DELTA_DIVISOR;
       ballPositionVector.y +=
         ballVelocityVector.y / VELOCITY_POSITION_DELTA_DIVISOR;
       ballPositionVector.z += ballVelocityVector.z;
-
-      // ballPositionVector.x = Math.min(
-      //   Math.max(0, ballPositionVector.x),
-      //   course.width - 1
-      // );
-      // ballPositionVector.y = Math.min(
-      //   Math.max(0, ballPositionVector.y),
-      //   course.height - 1
-      // );
 
       let newElevation: Elevation = { slope: "flat", height: 0 };
       try {
@@ -923,7 +849,6 @@ export class Golfnado {
       );
 
       if (ballVelocityVector.z === 0) {
-        // console.log("no z velocity, setting to ground");
         // ball has no z velocity so it is rolling, move it to the new elevation of ground
         ballPositionVector.z = newElevation?.height || 0;
       }
@@ -933,18 +858,6 @@ export class Golfnado {
         ballPositionVector,
         ballVelocityVector
       );
-
-      // console.log(
-      //   `x=${ballPositionVector.x} y=${ballPositionVector.y} z=${ballPositionVector.z} ball position`
-      // );
-
-      // console.log(
-      //   `x=${ballVelocityVector.x} y=${ballVelocityVector.y} z=${ballVelocityVector.z} ball velocity`
-      // );
-
-      // console.log(
-      //   `x=${forceVector.x} y=${forceVector.y} z=${forceVector.z}  force vector`
-      // );
 
       const newBallPoint = getBallSwingPoint(
         course,
@@ -967,7 +880,6 @@ export class Golfnado {
     }
 
     // filter swing path duplicate points
-
     const finalSwingPath = [];
     let count = 0;
     let lastX = null;
@@ -1003,247 +915,10 @@ export class Golfnado {
     );
   }
 
-  private calculateStroke(
-    swing: Swing,
-    course: Course,
-    strokes: Stroke[]
-  ): Stroke {
-    const swingPath: SwingPoint[] = [];
-
-    const startLocation = Hole.getCurrentBallLocation(strokes, course);
-    let endLocation = startLocation; // for putter it will be the same because no time in air
-    const startGround = course.terrain[startLocation.y][startLocation.x];
-
-    // console.log(`start ground: ${startLocation}`);
-
-    const distance = Math.max(
-      CLUB_TERRAIN_POWER_RATIO[swing.club][startGround] * swing.power,
-      1
-    );
-    const adjustedDirection = adjustDirection(
-      swing.direction,
-      swing.club,
-      startGround
-    );
-
-    // console.log(
-    //   `adjusted direction from ${swing.direction} to ${adjustedDirection} for start ground ${startGround}`
-    // );
-
-    const yDiff = -1 * Math.cos(degreesToRadians(adjustedDirection)) * distance;
-    const xDiff = Math.sin(degreesToRadians(adjustedDirection)) * distance;
-
-    if (swing.club !== Club.PUTTER) {
-      endLocation = new Point2D(
-        Math.round(startLocation.x + xDiff),
-        Math.round(startLocation.y + yDiff)
-      );
-
-      const flightPoints = Point2D.pointsBetween(startLocation, endLocation);
-      const heights = Point2D.calculateHeights(
-        flightPoints,
-        CLUB_MAX_HEIGHTS[swing.club]
-      );
-
-      for (let i = 0; i < flightPoints.length; i++) {
-        swingPath.push({
-          point: flightPoints[i],
-          height: heights[i],
-          speed: distance,
-        });
-      }
-    }
-
-    // console.log(`end air location: ${endLocation}`);
-
-    // now roll on ground
-
-    const endGroundLocationMax = new Point2D(
-      Math.round(endLocation.x + xDiff),
-      Math.round(endLocation.y + yDiff)
-    );
-
-    const rollPoints = Point2D.pointsBetween(endLocation, endGroundLocationMax);
-
-    let power = distance / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club];
-    if (swingPath.length === 0) {
-      swingPath.push({
-        point: endLocation,
-        height: 0,
-        speed: distance,
-      });
-    }
-
-    let i = 1;
-    let currentPoint = endLocation;
-    while (
-      power > 0 &&
-      currentPoint.x >= 0 &&
-      currentPoint.y >= 0 &&
-      currentPoint.x < course.width &&
-      currentPoint.y < course.height
-    ) {
-      // subtract from power based on ground
-      const currentLocationGround =
-        course.terrain[currentPoint.y][currentPoint.x];
-      // console.log(power, currentLocationGround);
-      const speedMultiplier = GROUND_SPEED_SUBTRACTION[currentLocationGround];
-      power -= Math.max(power * speedMultiplier, 0.1);
-
-      swingPath.push({
-        point: currentPoint,
-        height: 0,
-        speed: power,
-      });
-
-      currentPoint = rollPoints[i];
-      if (
-        currentPoint === undefined ||
-        currentPoint.y < 0 ||
-        currentPoint.x < 0
-      ) {
-        break;
-      }
-
-      i += 1;
-    }
-
-    return new Stroke(
-      swing,
-      startLocation,
-      swingPath[swingPath.length - 1].point,
-      swingPath
-    );
-  }
-
-  // public createPNGofCurrentHole() {
-  //   const currentHoleIndex = this.getCurrentHoleIndex();
-  //   const currentHole = this.holes[currentHoleIndex];
-
-  //   const terrain = JSON.parse(JSON.stringify(currentHole.course.terrain));
-
-  //   for (let playerStrokes of currentHole.strokes) {
-  //     const location = Hole.getCurrentBallLocation(
-  //       playerStrokes,
-  //       currentHole.course
-  //     );
-  //     terrain[location.y][location.x] = Ground.BALL;
-  //   }
-
-  //   const scaleFactor = 8;
-
-  //   const png = new PNG({
-  //     width: currentHole.course.width * scaleFactor,
-  //     height: currentHole.course.height * scaleFactor,
-  //     bitDepth: 8,
-  //     colorType: 6,
-  //     inputColorType: 6,
-  //     inputHasAlpha: true,
-  //     bgColor: {
-  //       red: 0,
-  //       green: 255,
-  //       blue: 0,
-  //     },
-  //   });
-
-  //   for (let y = 0; y < terrain.length; y++) {
-  //     for (let x = 0; x < terrain[y].length; x++) {
-  //       let r = 0;
-  //       let g = 0;
-  //       let b = 0;
-
-  //       switch (terrain[y][x]) {
-  //         case Ground.BALL:
-  //           r = 255;
-  //           g = 255;
-  //           b = 255;
-  //           break;
-  //         case Ground.HOLE:
-  //           r = 0;
-  //           g = 0;
-  //           b = 0;
-  //           break;
-  //         case Ground.GREEN:
-  //           r = 60;
-  //           g = 240;
-  //           b = 60;
-  //           break;
-  //         case Ground.FAIRWAY:
-  //           r = 40;
-  //           g = 150;
-  //           b = 40;
-  //           break;
-  //         case Ground.ROUGH:
-  //           r = 90;
-  //           g = 60;
-  //           b = 30;
-  //           break;
-  //         case Ground.WATER:
-  //           r = 30;
-  //           g = 80;
-  //           b = 200;
-  //           break;
-  //         case Ground.SAND:
-  //           r = 250;
-  //           g = 250;
-  //           b = 70;
-  //           break;
-  //         case Ground.TEE_BOX:
-  //           r = 220;
-  //           g = 220;
-  //           b = 220;
-  //           break;
-  //         default:
-  //           r = 0;
-  //           g = 0;
-  //           b = 0;
-  //           break;
-  //       }
-  //       // const idx = (png.width * y + x) << 2;
-  //       // png.data[idx] = r;
-  //       // png.data[idx + 1] = g;
-  //       // png.data[idx + 2] = b;
-  //       // png.data[idx + 3] = 255;
-  //       // Set 2x2 block of pixels for each original pixel
-  //       for (let dy = 0; dy < scaleFactor; dy++) {
-  //         for (let dx = 0; dx < scaleFactor; dx++) {
-  //           const scaledX = x * scaleFactor + dx;
-  //           const scaledY = y * scaleFactor + dy;
-  //           const idx = (png.width * scaledY + scaledX) << 2;
-  //           png.data[idx] = r;
-  //           png.data[idx + 1] = g;
-  //           png.data[idx + 2] = b;
-  //           png.data[idx + 3] = 255;
-  //         }
-  //       }
-  //     }
-  //   }
-
-  //   return PNG.sync.write(png, { colorType: 6 });
-  // }
-
-  // public drawCurrentHole(): string {
-  //   const currentHoleIndex = this.getCurrentHoleIndex();
-  //   const currentHole = this.holes[currentHoleIndex];
-  //   return this.drawHole(currentHole);
-  // }
-
-  // public drawHole(hole: Hole): string {
-  //   const terrain = JSON.parse(JSON.stringify(hole.course.terrain)); // deep copy
-
-  //   for (let playerStrokes of hole.strokes) {
-  //     const location = Golfnado.getCurrentBallLocation(playerStrokes, hole.course);
-  //     terrain[location.y][location.x] = Ground.BALL;
-  //   }
-
-  //   return draw(terrain);
-  // }
-
   public static parseSwing(swing: string): Swing | null {
     const split = swing.trim().split(/\s+/);
 
     if (split.length != 4) {
-      // console.log("invalid swing");
       return null;
     }
 
@@ -1260,48 +935,19 @@ export class Golfnado {
     }
 
     if (club === undefined) {
-      // console.log(`invalid club: ${clubString.toLowerCase()}`);
       return null;
     }
 
     const power = parseInt(split[2]);
     if (Number.isNaN(power) || power <= 0 || power > 100) {
-      // console.log(`invalid power: ${power}`);
       return null;
     }
 
     const direction = parseInt(split[3]);
     if (Number.isNaN(direction)) {
-      // console.log(`invalid direction: ${direction}`);
       return null;
     }
 
     return new Swing(club, power, direction);
   }
-
-  // private async initializeGame(): Promise<void> {
-  //   let rl = readline.createInterface({
-  //     input: process.stdin,
-  //     output: process.stdout,
-  //   });
-
-  //   const numPlayers = parseInt(
-  //     await this.askQuestion(rl, "How many players? ")
-  //   );
-  //   const numHoles = parseInt(await this.askQuestion(rl, "How many holes? "));
-
-  //   rl.close();
-
-  //   Array.from({ length: numPlayers }, (_, i) => {
-  //     this.players.push(new Player(i));
-  //   });
-
-  //   Array.from({ length: numHoles }, (_, i) => {
-  //     this.holes.push(new Hole(new Course(), numPlayers));
-  //   });
-  // }
-
-  // private askQuestion(rl: readline.Interface, query: string): Promise<string> {
-  //   return new Promise((resolve) => rl.question(query, resolve));
-  // }
 }

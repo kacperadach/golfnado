@@ -201,35 +201,6 @@ async function sendCourseGif(
     channel_id: context.channelId,
     files: [{ id: file_id, title: "image.gif" }],
   });
-
-  // const pngBuffer = currentGame.createPNGofCurrentHole();
-
-  // const uploadUrl = await context.client.files.getUploadURLExternal({
-  //   channel: context.channelId,
-  //   filename: "image.png",
-  //   length: pngBuffer.byteLength,
-  // });
-
-  // const { upload_url, file_id } = uploadUrl;
-
-  // const formData = new FormData();
-  // formData.append(
-  //   "file",
-  //   new Blob([pngBuffer], { type: "image/png" }),
-  //   "image.png"
-  // );
-  // // formData.append("filename", "image.png");
-
-  // // Send POST request
-  // const response = await fetch(upload_url, {
-  //   method: "POST",
-  //   body: formData,
-  // });
-
-  // await context.client.files.completeUploadExternal({
-  //   channel_id: context.channelId,
-  //   files: [{ id: file_id, title: "image.png" }],
-  // });
 }
 
 async function newGame(env, context) {

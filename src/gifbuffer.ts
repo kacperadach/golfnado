@@ -323,55 +323,6 @@ export async function createSwingGifBuffer(
     return frameCopy;
   }
 
-  // function drawGolfBall(frame, position, ballHeight, color, width, height) {
-  //   const ballCenterX = Math.round(position.x * ZOOM_RATIO);
-  //   const ballCenterY = Math.round(position.y * ZOOM_RATIO);
-  //   const ballRadius = Math.round(ZOOM_RATIO / 1.5 + ballHeight * 10);
-  //   const ballRGB = hexToRgb(color);
-  //   const affectedPixels = [];
-
-  //   const startX = Math.max(0, ballCenterX - ballRadius);
-  //   const endX = Math.min(width - 1, ballCenterX + ballRadius);
-  //   const startY = Math.max(0, ballCenterY - ballRadius);
-  //   const endY = Math.min(height - 1, ballCenterY + ballRadius);
-
-  //   for (let y = startY; y <= endY; y++) {
-  //     for (let x = startX; x <= endX; x++) {
-  //       const dist = Math.sqrt((x - ballCenterX) ** 2 + (y - ballCenterY) ** 2);
-  //       if (dist <= ballRadius) {
-  //         const idx = (y * width + x) * 4;
-  //         // Save affected pixel index and original color to reset later
-  //         affectedPixels.push({
-  //           idx,
-  //           originalR: frame[idx],
-  //           originalG: frame[idx + 1],
-  //           originalB: frame[idx + 2],
-  //           originalA: frame[idx + 3],
-  //         });
-
-  //         frame[idx] = ballRGB.r;
-  //         frame[idx + 1] = ballRGB.g;
-  //         frame[idx + 2] = ballRGB.b;
-  //         frame[idx + 3] = 255;
-  //       }
-  //     }
-  //   }
-
-  //   return affectedPixels;
-  // }
-
-  // function resetAffectedPixels(frame, affectedPixels) {
-  //   affectedPixels.forEach(
-  //     ({ idx, originalR, originalG, originalB, originalA }) => {
-  //       frame[idx] = originalR;
-  //       frame[idx + 1] = originalG;
-  //       frame[idx + 2] = originalB;
-  //       frame[idx + 3] = originalA;
-  //     }
-  //   );
-  // }
-
-  let frame = 0;
   if (stroke) {
     stroke.swingPath.forEach((swingPoint, idx) => {
       if (swingPoint === undefined) {
@@ -406,18 +357,6 @@ export async function createSwingGifBuffer(
             height
           )
         );
-        // const affectedPixels = drawGolfBall(
-        //   cachedCourseFrame,
-        //   swingPoint.point,
-        //   swingPoint.height,
-        //   ballColor,
-        //   width,
-        //   height
-        // );
-        // // Process the frame for the current GIF frame
-        // encoder.addFrame(cachedCourseFrame);
-        // // Reset affected pixels for the next frame
-        // resetAffectedPixels(cachedCourseFrame, affectedPixels);
       }
     });
   } else {
