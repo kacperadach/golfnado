@@ -1,4 +1,4 @@
-import { Course, draw, Point2D, Ground, Elevation } from "./course";
+import { Course, Point2D, Ground, Elevation } from "./course";
 
 const MAX_STROKES = 10;
 const MAX_INACCURACY_DEGREES = 15;
@@ -9,7 +9,7 @@ const AIR_RESISTANCE_DRAG_RATIO = 0.05;
 const MIN_VELOCITY = 0.1;
 const BOUNCE_THRESHOLD = 4;
 const VELOCITY_POSITION_DELTA_DIVISOR = 10;
-const SLOPE_VELOCITY = 1;
+const SLOPE_VELOCITY = 1.5;
 const SLOPE_THRESHOLD = 1;
 const WIND_HEIGHT_THRESHOLD = 3;
 
@@ -36,17 +36,10 @@ export enum Club {
   PUTTER,
 }
 
-const CLUB_MAX_HEIGHTS = {
-  [Club.DRIVER]: 1.5,
-  [Club.IRON]: 1,
-  [Club.WEDGE]: 2,
-  [Club.PUTTER]: 0,
-};
-
 const CLUB_BOUNCE_VELOCITY_DIVISOR = {
-  [Club.DRIVER]: 10,
+  [Club.DRIVER]: 15,
   [Club.IRON]: 12,
-  [Club.WEDGE]: 15,
+  [Club.WEDGE]: 6,
   [Club.PUTTER]: 1, // irrelevant
 };
 
@@ -62,7 +55,7 @@ const GROUND_ACCURACY_RATIO = {
   [Ground.GREEN]: 1,
   [Ground.FAIRWAY]: 1,
   [Ground.SAND]: 0.95,
-  [Ground.ROUGH]: 0.9,
+  [Ground.ROUGH]: 0.85,
 
   // irrelevant
   [Ground.BALL]: 1,
@@ -74,8 +67,8 @@ const GROUND_ACCURACY_RATIO = {
 const CLUB_TERRAIN_POWER_RATIO = {
   [Club.DRIVER]: {
     [Ground.TEE_BOX]: 0.4,
-    [Ground.GREEN]: 0.25,
-    [Ground.FAIRWAY]: 0.25,
+    [Ground.GREEN]: 0.3,
+    [Ground.FAIRWAY]: 0.3,
     [Ground.ROUGH]: 0.1,
     [Ground.SAND]: 0.01,
     // irrelevant
@@ -85,10 +78,10 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.BALL]: 1,
   },
   [Club.IRON]: {
-    [Ground.TEE_BOX]: 0.3,
-    [Ground.GREEN]: 0.25,
-    [Ground.FAIRWAY]: 0.25,
-    [Ground.ROUGH]: 0.1,
+    [Ground.TEE_BOX]: 0.325,
+    [Ground.GREEN]: 0.275,
+    [Ground.FAIRWAY]: 0.275,
+    [Ground.ROUGH]: 0.13,
     [Ground.SAND]: 0.08,
     // irrelevant
     [Ground.UNDEFINED]: 1,
@@ -123,6 +116,58 @@ const CLUB_TERRAIN_POWER_RATIO = {
   },
 };
 
+// const CLUB_TERRAIN_POWER_RATIO = {
+//   [Club.DRIVER]: {
+//     [Ground.TEE_BOX]: 0.4,
+//     [Ground.GREEN]: 0.25,
+//     [Ground.FAIRWAY]: 0.25,
+//     [Ground.ROUGH]: 0.1,
+//     [Ground.SAND]: 0.01,
+//     // irrelevant
+//     [Ground.UNDEFINED]: 1,
+//     [Ground.HOLE]: 1,
+//     [Ground.WATER]: 1,
+//     [Ground.BALL]: 1,
+//   },
+//   [Club.IRON]: {
+//     [Ground.TEE_BOX]: 0.3,
+//     [Ground.GREEN]: 0.25,
+//     [Ground.FAIRWAY]: 0.25,
+//     [Ground.ROUGH]: 0.1,
+//     [Ground.SAND]: 0.08,
+//     // irrelevant
+//     [Ground.UNDEFINED]: 1,
+//     [Ground.HOLE]: 1,
+//     [Ground.WATER]: 1,
+//     [Ground.BALL]: 1,
+//   },
+//   [Club.WEDGE]: {
+//     [Ground.TEE_BOX]: 0.18,
+//     [Ground.GREEN]: 0.18,
+//     [Ground.FAIRWAY]: 0.18,
+//     [Ground.ROUGH]: 0.16,
+//     [Ground.SAND]: 0.15,
+//     // irrelevant
+//     [Ground.UNDEFINED]: 1,
+//     [Ground.HOLE]: 1,
+//     [Ground.WATER]: 1,
+//     [Ground.BALL]: 1,
+//   },
+//   [Club.PUTTER]: {
+//     [Ground.TEE_BOX]: 0.08,
+//     [Ground.GREEN]: 0.08,
+//     [Ground.FAIRWAY]: 0.08,
+//     [Ground.ROUGH]: 0.02,
+//     [Ground.SAND]: 0.01,
+
+//     // irrelevant
+//     [Ground.UNDEFINED]: 1,
+//     [Ground.HOLE]: 1,
+//     [Ground.WATER]: 1,
+//     [Ground.BALL]: 1,
+//   },
+// };
+
 const GROUND_SPEED_SUBTRACTION = {
   [Ground.WATER]: 1,
   [Ground.SAND]: 1,
@@ -131,7 +176,7 @@ const GROUND_SPEED_SUBTRACTION = {
   [Ground.HOLE]: 0.8,
   [Ground.ROUGH]: 0.9,
   [Ground.FAIRWAY]: 0.25,
-  [Ground.GREEN]: 0.05,
+  [Ground.GREEN]: 0.06,
   [Ground.TEE_BOX]: 0,
 };
 
@@ -229,6 +274,7 @@ export class Stroke {
       swing: this.swing.toJSON(),
       start: this.start.toJSON(),
       end: this.end.toJSON(),
+      swingPath: this.swingPath,
     };
   }
 
@@ -238,7 +284,7 @@ export class Stroke {
       Swing.fromJSON(swing),
       Point2D.fromJSON(start),
       Point2D.fromJSON(end),
-      []
+      swingPath
     );
   }
 }
@@ -643,8 +689,20 @@ export class Golfnado {
     const yDiff =
       -1 * Math.cos(degreesToRadians(adjustedDirection)) * swingPower;
     const xDiff = Math.sin(degreesToRadians(adjustedDirection)) * swingPower;
+
+    // const zDiff =
+    //   Math.tan(degreesToRadians(CLUB_Z_ANGLE[swing.club])) / swingPower;
+
+    // console.log(`zDiff: ${zDiff} `);
+
+    // tan(zAngle) = zdiff/ x * y magnitude
+    // tan(zAngle) / x* y magnitude = zdiff
+
     const zDiff =
       Math.sin(degreesToRadians(CLUB_Z_ANGLE[swing.club])) * swingPower;
+
+    // technically zDiff should be cos(Z_ANGLE) = magniture of x and y / zDiff
+    // so Zdeff = magnitude x and y / cos(Z_ANGLE)
 
     // console.log(`zDIFF:${zDiff}`);
 
@@ -655,6 +713,8 @@ export class Golfnado {
     );
 
     let ballVelocityVector = new Vector3D(xDiff, yDiff, zDiff);
+
+    let slopeEnabled = false;
 
     function getBallSwingPoint(
       course: Course,
@@ -679,8 +739,8 @@ export class Golfnado {
       }
 
       return {
-        point: new Point2D(newX, newY),
-        height: positionVector.z - elevation / 4,
+        point: new Point2D(positionVector.x, positionVector.y),
+        height: Math.max(positionVector.z, elevation),
         speed: xyVelocityMagnitude,
       };
     }
@@ -736,12 +796,11 @@ export class Golfnado {
       } else {
         // console.log(`friction: slope=${newElevation.slope}`);
         // apply friction and/or slope
-        x = -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround];
-        y = -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround];
 
         if (
-          Math.sqrt(ballVelocity.x ** 2 + ballVelocity.y ** 2) <
-            SLOPE_THRESHOLD &&
+          slopeEnabled &&
+          // Math.sqrt(ballVelocity.x ** 2 + ballVelocity.y ** 2) <
+          //   SLOPE_THRESHOLD &&
           newGround !== Ground.HOLE
         ) {
           const slopeVelocityMagnitude =
@@ -789,6 +848,11 @@ export class Golfnado {
             }
           }
         }
+
+        if (slopeVector.x === 0 && slopeVector.y === 0 && slopeVector.z === 0) {
+          x = -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround];
+          y = -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround];
+        }
       }
 
       if (ballPosition.z > newElevation.height) {
@@ -829,6 +893,7 @@ export class Golfnado {
         ballVelocityVector.y !== 0 ||
         ballVelocityVector.z !== 0)
     ) {
+      iterations += 1;
       ballPositionVector.x +=
         ballVelocityVector.x / VELOCITY_POSITION_DELTA_DIVISOR;
       ballPositionVector.y +=
@@ -851,6 +916,13 @@ export class Golfnado {
       if (ballVelocityVector.z === 0) {
         // ball has no z velocity so it is rolling, move it to the new elevation of ground
         ballPositionVector.z = newElevation?.height || 0;
+      }
+
+      if (
+        Math.sqrt(ballVelocityVector.x ** 2 + ballVelocityVector.y ** 2) <
+        SLOPE_THRESHOLD
+      ) {
+        slopeEnabled = true;
       }
 
       const forceVector = getForceVector(
@@ -907,10 +979,12 @@ export class Golfnado {
       }
     }
 
+    const endPoint = finalSwingPath[finalSwingPath.length - 1].point;
+
     return new Stroke(
       swing,
       startLocation,
-      finalSwingPath[finalSwingPath.length - 1].point,
+      new Point2D(Math.round(endPoint.x), Math.round(endPoint.y)),
       finalSwingPath
     );
   }

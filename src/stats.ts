@@ -12,6 +12,7 @@ export type GolfnadoStats = {
   wins: NumberAndPlayerId;
   totalStrokes: NumberAndPlayerId;
   bestHole: NumberAndPlayerId;
+  bestRound: NumberAndPlayerId;
   averageStrokes: NumberAndPlayerId;
   maxStrokesReached: NumberAndPlayerId;
   timesLandedInWater: NumberAndPlayerId;
@@ -24,6 +25,10 @@ function getBetterStat(
   statTwo: NumberAndPlayerId,
   useLowest: boolean
 ): NumberAndPlayerId {
+  if (!statTwo) {
+    return statOne;
+  }
+
   if (useLowest) {
     return statOne.value <= statTwo.value ? statOne : statTwo;
   } else {
@@ -31,9 +36,7 @@ function getBetterStat(
   }
 }
 
-export function gatherBestStats(
-  allStats: GolfnadoStats[]
-): GolfnadoStats {
+export function gatherBestStats(allStats: GolfnadoStats[]): GolfnadoStats {
   return {
     games: allStats.reduce(
       (bestStat, playerStat) =>
@@ -58,6 +61,11 @@ export function gatherBestStats(
       (bestStat, playerStat) =>
         getBetterStat(bestStat, playerStat.bestHole, true),
       allStats[0].bestHole
+    ),
+    bestRound: allStats.reduce(
+      (bestStat, playerStat) =>
+        getBetterStat(bestStat, playerStat.bestRound, true),
+      allStats[0].bestRound
     ),
     averageStrokes: allStats.reduce(
       (bestStat, playerStat) =>
@@ -94,10 +102,10 @@ export function gatherPlayerStats(
   const playerId = game.players[playerIndex].id;
 
   let bestHole = game.maxStrokes;
+  let bestRound = game.maxStrokes * game.holes.length;
   let maxStrokesReached = 0;
   let timesLandedInSand = 0;
   let timesLandedInWater = 0;
-
   let longestHoleIn = 0;
 
   const playerScores = new Array(game.players.length).fill(0);
@@ -111,6 +119,8 @@ export function gatherPlayerStats(
       bestHole = hole.strokes[playerIndex].length;
     }
 
+    bestRound += hole.strokes[playerIndex].length;
+
     if (
       hole.strokes[playerIndex].length === game.maxStrokes &&
       !hole.course.isPointInHole(
@@ -122,8 +132,6 @@ export function gatherPlayerStats(
 
     const lastStroke =
       hole.strokes[playerIndex][hole.strokes[playerIndex].length - 1];
-
-    console.log(hole, lastStroke);
 
     if (hole.course.isPointInHole(lastStroke.end)) {
       const lastStrokeDistance = Point2D.distance(
@@ -157,6 +165,7 @@ export function gatherPlayerStats(
     },
     totalStrokes: { value: playerScores[playerIndex], playerId },
     bestHole: { value: bestHole, playerId },
+    bestRound: { value: bestRound, playerId },
     averageStrokes: {
       value: playerScores[playerIndex] / game.holes.length,
       playerId,
@@ -195,6 +204,13 @@ export function mergeStats(
       value: Math.min(
         allTimeStats.bestHole.value,
         lastGameStats.bestHole.value
+      ),
+      playerId,
+    },
+    bestRound: {
+      value: Math.min(
+        allTimeStats.bestRound.value || Number.MAX_VALUE,
+        lastGameStats.bestRound.value
       ),
       playerId,
     },

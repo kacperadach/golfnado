@@ -8,6 +8,8 @@ import {
   GolfnadoStats,
 } from "./stats";
 
+const GOLFNADO_3D_DOMAIN = "golfnado3d.pages.dev";
+
 const KEY_BASE = "golfnado-prod";
 
 function getKey(context) {
@@ -332,6 +334,16 @@ function getWindMessage(game: Golfnado) {
   )}MPH at ${game.getCurrentHole().course.wind.direction} degrees.`;
 }
 
+function get3dLink(
+  teamId: string,
+  channelId: string,
+  hole: number,
+  player: number,
+  stroke: number
+) {
+  return `https://${GOLFNADO_3D_DOMAIN}/${teamId}/${channelId}?hole=${hole}&player=${player}&stroke=${stroke}`;
+}
+
 async function swing(env, context, message: string) {
   const currentGame = await getCurrentGame(env, context);
   if (!currentGame) {
@@ -356,6 +368,8 @@ async function swing(env, context, message: string) {
     return;
   }
 
+  const currentHoleIndex = currentGame.getCurrentHoleIndex();
+  const currentHole = currentGame.getCurrentHole();
   const currentPlayer = currentGame.getCurrentPlayer();
 
   if (!currentPlayer || currentPlayer.id !== context.userId) {
@@ -376,9 +390,6 @@ async function swing(env, context, message: string) {
     return;
   }
 
-  const currentHoleIndex = currentGame.getCurrentHoleIndex();
-  const currentHole = currentGame.getCurrentHole();
-
   const strokeResult = currentGame.swing(context.userId, swing);
   if (strokeResult === undefined) {
     await context.client.chat.postMessage({
@@ -393,6 +404,20 @@ async function swing(env, context, message: string) {
   if (strokeResult.gameState === GameState.GAME_OVER) {
     await archiveFinishedGame(env, context);
   }
+
+  const currentPlayerIndex = currentGame.players.findIndex(
+    (p) => p.id === currentPlayer.id
+  );
+
+  const strokeNum = strokeResult.hole.strokes[currentPlayerIndex].length;
+
+  const golfnado3dLink = get3dLink(
+    context.teamId,
+    context.channelId,
+    currentHoleIndex + 1,
+    currentPlayerIndex + 1,
+    strokeNum
+  );
 
   let nextPlayerId = null;
   let nextPlayerMessage = "";
@@ -413,9 +438,9 @@ async function swing(env, context, message: string) {
 
   await context.client.chat.postMessage({
     channel: context.channelId,
-    text: `<@${context.userId}> Ball landed in ${
+    text: `<@${context.userId}> <${golfnado3dLink}|Ball landed in ${
       Ground[strokeResult.endGround]
-    }. ${nextPlayerMessage}`,
+    }.> ${nextPlayerMessage}`,
   });
 
   if (nextPlayerId) {
@@ -461,8 +486,21 @@ function getScorecardText(game: Golfnado) {
     let playerRow = "`";
     let playerTotal = 0;
     for (let holeNum = 0; holeNum < game.holes.length; holeNum++) {
-      playerRow += `${game.holes[holeNum].strokes[playerNum].length}   `;
-      playerTotal += game.holes[holeNum].strokes[playerNum].length;
+      const hole = game.holes[holeNum];
+
+      const strokes = game.holes[holeNum].strokes[playerNum];
+
+      const holeStared = hole.strokes.find((s) => s.length > 0);
+
+      let holeFinished = !holeStared;
+      if (strokes.length > 0) {
+        holeFinished =
+          hole.course.isPointInHole(strokes[strokes.length - 1].end) ||
+          strokes.length >= game.maxStrokes;
+      }
+
+      playerRow += `${strokes.length}${holeFinished ? " " : "*"}  `;
+      playerTotal += strokes.length;
     }
     playerRow += `${playerTotal}   <@${game.players[playerNum].id}>`;
     message += playerRow + "`\n";

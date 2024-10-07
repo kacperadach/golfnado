@@ -226,7 +226,7 @@ export class Course {
     elevation: Elevation[][] = [],
     teeBoxPoint: Point2D = new Point2D(0, 0),
     holePoint: Point2D = new Point2D(0, 0),
-    wind: Wind
+    wind: Wind = { velocity: 0, direction: 0 }
   ) {
     this.height = height;
     this.width = width;
@@ -411,8 +411,6 @@ export class Course {
       }
     }
 
-    // now need to add slopes
-
     const slopeOrder: Slope[] = ["horizontal", "vertical"];
     shuffle(slopeOrder);
 
@@ -476,58 +474,6 @@ export class Course {
           }
         }
       }
-
-      // for (let i: number = 0; i < this.height; i++) {
-      //   for (let j: number = 0; j < this.width; j++) {
-      //     const pointHeight = this.elevation[i][j].height;
-
-      //     for (let slope of slopeOrder) {
-      //       if (slope === "vertical") {
-      //         if (i + 1 >= this.height) {
-      //           continue;
-      //         }
-
-      //         const pointUp = this.elevation[i + 1][j];
-      //         if (
-      //           pointUp.slope !== "flat" ||
-      //           Math.abs(pointHeight - pointUp.height) <= SLOPE_DIFF
-      //         ) {
-      //           continue;
-      //         }
-
-      //         this.elevation[i + 1][j] = {
-      //           slope: "vertical",
-      //           height:
-      //             pointUp.height > pointHeight
-      //               ? pointHeight + SLOPE_DIFF
-      //               : pointHeight - SLOPE_DIFF,
-      //         };
-      //         changed = true;
-      //       } else if (slope === "horizontal") {
-      //         if (j + 1 >= this.width) {
-      //           continue;
-      //         }
-
-      //         const pointRight = this.elevation[i][j + 1];
-      //         if (
-      //           pointRight.slope !== "flat" ||
-      //           Math.abs(pointHeight - pointRight.height) <= SLOPE_DIFF
-      //         ) {
-      //           continue;
-      //         }
-
-      //         this.elevation[i][j + 1] = {
-      //           slope: "horizontal",
-      //           height:
-      //             pointRight.height > pointHeight
-      //               ? pointHeight + SLOPE_DIFF
-      //               : pointHeight - SLOPE_DIFF,
-      //         };
-      //         changed = true;
-      //       }
-      //     }
-      //   }
-      // }
     }
   }
 
