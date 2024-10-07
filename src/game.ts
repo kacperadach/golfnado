@@ -9,7 +9,7 @@ const AIR_RESISTANCE_DRAG_RATIO = 0.05;
 const MIN_VELOCITY = 0.1;
 const BOUNCE_THRESHOLD = 4;
 const VELOCITY_POSITION_DELTA_DIVISOR = 10;
-const SLOPE_VELOCITY = 1.5;
+const SLOPE_VELOCITY = 0.6;
 const SLOPE_THRESHOLD = 1;
 const WIND_HEIGHT_THRESHOLD = 3;
 
@@ -39,7 +39,7 @@ export enum Club {
 const CLUB_BOUNCE_VELOCITY_DIVISOR = {
   [Club.DRIVER]: 15,
   [Club.IRON]: 12,
-  [Club.WEDGE]: 6,
+  [Club.WEDGE]: 5,
   [Club.PUTTER]: 1, // irrelevant
 };
 
@@ -714,8 +714,6 @@ export class Golfnado {
 
     let ballVelocityVector = new Vector3D(xDiff, yDiff, zDiff);
 
-    let slopeEnabled = false;
-
     function getBallSwingPoint(
       course: Course,
       positionVector: Vector3D,
@@ -771,17 +769,17 @@ export class Golfnado {
         newElevation = course.elevation[newY][newX];
       }
 
-      let x = 0;
-      let y = 0;
-      let z = 0;
-
       let windVector = new Vector3D(0, 0, 0);
       let slopeVector = new Vector3D(0, 0, 0);
+      let frictionVector = new Vector3D(0, 0, 0);
+      let bounceVector = new Vector3D(0, 0, 0);
+      let airVector = new Vector3D(0, 0, 0);
 
       if (ballPosition.z > newElevation.height) {
         // console.log("air resistance");
-        x = -1 * ballVelocity.x * AIR_RESISTANCE_DRAG_RATIO;
-        y = -1 * ballVelocity.y * AIR_RESISTANCE_DRAG_RATIO;
+        airVector.x = -1 * ballVelocity.x * AIR_RESISTANCE_DRAG_RATIO;
+        airVector.y = -1 * ballVelocity.y * AIR_RESISTANCE_DRAG_RATIO;
+        airVector.z -= GRAVITY; // gravity
 
         if (ballPosition.z - newElevation.height > WIND_HEIGHT_THRESHOLD) {
           // console.log("wind");
@@ -794,18 +792,20 @@ export class Golfnado {
           );
         }
       } else {
-        // console.log(`friction: slope=${newElevation.slope}`);
-        // apply friction and/or slope
+        // if (slopeVector.x === 0 && slopeVector.y === 0 && slopeVector.z === 0) {
+        frictionVector = new Vector3D(
+          -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround],
+          -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround],
+          0
+        );
 
-        if (
-          slopeEnabled &&
-          // Math.sqrt(ballVelocity.x ** 2 + ballVelocity.y ** 2) <
-          //   SLOPE_THRESHOLD &&
-          newGround !== Ground.HOLE
-        ) {
-          const slopeVelocityMagnitude =
-            SLOPE_VELOCITY -
-            SLOPE_VELOCITY * GROUND_SPEED_SUBTRACTION[newGround];
+        // }
+
+        if (newGround !== Ground.HOLE) {
+          const slopeVelocityMagnitude = SLOPE_VELOCITY;
+          // const slopeVelocityMagnitude =
+          //   SLOPE_VELOCITY -
+          //   SLOPE_VELOCITY * GROUND_SPEED_SUBTRACTION[newGround];
           if (newElevation.slope == "horizontal") {
             let leftHeight = newElevation.height;
             let rightHeight = newElevation.height;
@@ -849,40 +849,51 @@ export class Golfnado {
           }
         }
 
-        if (slopeVector.x === 0 && slopeVector.y === 0 && slopeVector.z === 0) {
-          x = -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround];
-          y = -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround];
-        }
-      }
-
-      if (ballPosition.z > newElevation.height) {
-        z -= GRAVITY; // gravity
-      } else if (ballPosition.z <= newElevation.height) {
-        if (Math.abs(ballVelocity.z) >= BOUNCE_THRESHOLD) {
-          if (ballVelocity.z <= 0) {
-            // bounce
-            x =
-              -1 * (ballVelocity.x / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
-            y =
-              -1 * (ballVelocity.y / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
-            z =
+        if (ballVelocity.z < 0) {
+          if (Math.abs(ballVelocity.z) >= BOUNCE_THRESHOLD) {
+            bounceVector.z =
               -1 *
               (ballVelocity.z +
                 ballVelocity.z * GROUND_BOUNCE_RATIO[newGround]);
+            // z =
+            // -1 *
+            // (ballVelocity.z +
+            //   ballVelocity.z * GROUND_BOUNCE_RATIO[newGround]);
+          } else {
+            bounceVector.z = -1 * ballVelocity.z;
+            // z = -1 * ballVelocity.z;
           }
-        } else {
-          // cancel z
-          z = -1 * ballVelocity.z;
+
+          // only slow down from bounce if not in water/sand/undefined
+          if (GROUND_SPEED_SUBTRACTION[newGround] !== 1) {
+            bounceVector.x =
+              -1 * (ballVelocity.x / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
+            bounceVector.y =
+              -1 * (ballVelocity.y / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
+            // x =
+            //   -1 * (ballVelocity.x / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
+            // y =
+            //   -1 * (ballVelocity.y / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
+          }
         }
-      } else {
-        // cancel z
-        z = -1 * ballVelocity.z; // cancel it out
       }
 
       return new Vector3D(
-        x + windVector.x + slopeVector.x,
-        y + windVector.y + slopeVector.y,
-        z
+        windVector.x +
+          slopeVector.x +
+          frictionVector.x +
+          bounceVector.x +
+          airVector.x,
+        windVector.y +
+          slopeVector.y +
+          frictionVector.y +
+          bounceVector.y +
+          airVector.y,
+        windVector.z +
+          slopeVector.z +
+          frictionVector.z +
+          bounceVector.z +
+          airVector.z
       );
     }
 
@@ -916,13 +927,6 @@ export class Golfnado {
       if (ballVelocityVector.z === 0) {
         // ball has no z velocity so it is rolling, move it to the new elevation of ground
         ballPositionVector.z = newElevation?.height || 0;
-      }
-
-      if (
-        Math.sqrt(ballVelocityVector.x ** 2 + ballVelocityVector.y ** 2) <
-        SLOPE_THRESHOLD
-      ) {
-        slopeEnabled = true;
       }
 
       const forceVector = getForceVector(
