@@ -8,7 +8,8 @@ import {
   GolfnadoStats,
 } from "./stats";
 
-const GOLFNADO_3D_DOMAIN = "golfnado.xyz";
+// const GOLFNADO_3D_DOMAIN = "golfnado.xyz";
+const GOLFNADO_3D_DOMAIN = "golfnado3d.pages.dev";
 
 const KEY_BASE = "golfnado-prod";
 
