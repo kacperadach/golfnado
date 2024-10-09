@@ -116,58 +116,6 @@ const CLUB_TERRAIN_POWER_RATIO = {
   },
 };
 
-// const CLUB_TERRAIN_POWER_RATIO = {
-//   [Club.DRIVER]: {
-//     [Ground.TEE_BOX]: 0.4,
-//     [Ground.GREEN]: 0.25,
-//     [Ground.FAIRWAY]: 0.25,
-//     [Ground.ROUGH]: 0.1,
-//     [Ground.SAND]: 0.01,
-//     // irrelevant
-//     [Ground.UNDEFINED]: 1,
-//     [Ground.HOLE]: 1,
-//     [Ground.WATER]: 1,
-//     [Ground.BALL]: 1,
-//   },
-//   [Club.IRON]: {
-//     [Ground.TEE_BOX]: 0.3,
-//     [Ground.GREEN]: 0.25,
-//     [Ground.FAIRWAY]: 0.25,
-//     [Ground.ROUGH]: 0.1,
-//     [Ground.SAND]: 0.08,
-//     // irrelevant
-//     [Ground.UNDEFINED]: 1,
-//     [Ground.HOLE]: 1,
-//     [Ground.WATER]: 1,
-//     [Ground.BALL]: 1,
-//   },
-//   [Club.WEDGE]: {
-//     [Ground.TEE_BOX]: 0.18,
-//     [Ground.GREEN]: 0.18,
-//     [Ground.FAIRWAY]: 0.18,
-//     [Ground.ROUGH]: 0.16,
-//     [Ground.SAND]: 0.15,
-//     // irrelevant
-//     [Ground.UNDEFINED]: 1,
-//     [Ground.HOLE]: 1,
-//     [Ground.WATER]: 1,
-//     [Ground.BALL]: 1,
-//   },
-//   [Club.PUTTER]: {
-//     [Ground.TEE_BOX]: 0.08,
-//     [Ground.GREEN]: 0.08,
-//     [Ground.FAIRWAY]: 0.08,
-//     [Ground.ROUGH]: 0.02,
-//     [Ground.SAND]: 0.01,
-
-//     // irrelevant
-//     [Ground.UNDEFINED]: 1,
-//     [Ground.HOLE]: 1,
-//     [Ground.WATER]: 1,
-//     [Ground.BALL]: 1,
-//   },
-// };
-
 const GROUND_SPEED_SUBTRACTION = {
   [Ground.WATER]: 1,
   [Ground.SAND]: 1,
@@ -792,20 +740,18 @@ export class Golfnado {
           );
         }
       } else {
-        // if (slopeVector.x === 0 && slopeVector.y === 0 && slopeVector.z === 0) {
         frictionVector = new Vector3D(
           -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround],
           -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround],
           0
         );
 
-        // }
-
-        if (newGround !== Ground.HOLE) {
+        if (
+          newGround !== Ground.HOLE &&
+          GROUND_SPEED_SUBTRACTION[newGround] !== 1
+        ) {
           const slopeVelocityMagnitude = SLOPE_VELOCITY;
-          // const slopeVelocityMagnitude =
-          //   SLOPE_VELOCITY -
-          //   SLOPE_VELOCITY * GROUND_SPEED_SUBTRACTION[newGround];
+
           if (newElevation.slope == "horizontal") {
             let leftHeight = newElevation.height;
             let rightHeight = newElevation.height;
@@ -855,13 +801,8 @@ export class Golfnado {
               -1 *
               (ballVelocity.z +
                 ballVelocity.z * GROUND_BOUNCE_RATIO[newGround]);
-            // z =
-            // -1 *
-            // (ballVelocity.z +
-            //   ballVelocity.z * GROUND_BOUNCE_RATIO[newGround]);
           } else {
             bounceVector.z = -1 * ballVelocity.z;
-            // z = -1 * ballVelocity.z;
           }
 
           // only slow down from bounce if not in water/sand/undefined
