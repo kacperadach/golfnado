@@ -10,7 +10,6 @@ const MIN_VELOCITY = 0.1;
 const BOUNCE_THRESHOLD = 4;
 const VELOCITY_POSITION_DELTA_DIVISOR = 10;
 const SLOPE_VELOCITY = 0.6;
-const SLOPE_THRESHOLD = 1;
 const WIND_HEIGHT_THRESHOLD = 3;
 
 const BALL_COLORS = {
@@ -102,8 +101,8 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.BALL]: 1,
   },
   [Club.PUTTER]: {
-    [Ground.TEE_BOX]: 0.08,
-    [Ground.GREEN]: 0.08,
+    [Ground.TEE_BOX]: 0.09,
+    [Ground.GREEN]: 0.09,
     [Ground.FAIRWAY]: 0.08,
     [Ground.ROUGH]: 0.02,
     [Ground.SAND]: 0.01,
@@ -740,19 +739,22 @@ export class Golfnado {
           );
         }
       } else {
-        frictionVector = new Vector3D(
-          -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround],
-          -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround],
-          0
-        );
-
         if (
-          newGround !== Ground.HOLE &&
-          GROUND_SPEED_SUBTRACTION[newGround] !== 1
+          newElevation.slope === "flat" ||
+          newGround === Ground.HOLE ||
+          GROUND_SPEED_SUBTRACTION[newGround] === 1
         ) {
-          const slopeVelocityMagnitude = SLOPE_VELOCITY;
+          frictionVector = new Vector3D(
+            -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround],
+            -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround],
+            0
+          );
+        } else {
+          const slopeVelocityMagnitude =
+            SLOPE_VELOCITY -
+            SLOPE_VELOCITY * GROUND_SPEED_SUBTRACTION[newGround];
 
-          if (newElevation.slope == "horizontal") {
+          if (newElevation.slope === "horizontal") {
             let leftHeight = newElevation.height;
             let rightHeight = newElevation.height;
 
@@ -773,7 +775,7 @@ export class Golfnado {
               // console.log("slope left");
               slopeVector = new Vector3D(-slopeVelocityMagnitude, 0, 0);
             }
-          } else if (newElevation.slope == "vertical") {
+          } else if (newElevation.slope === "vertical") {
             let upHeight = newElevation.height;
             let downHeight = newElevation.height;
 
@@ -811,10 +813,6 @@ export class Golfnado {
               -1 * (ballVelocity.x / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
             bounceVector.y =
               -1 * (ballVelocity.y / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
-            // x =
-            //   -1 * (ballVelocity.x / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
-            // y =
-            //   -1 * (ballVelocity.y / CLUB_BOUNCE_VELOCITY_DIVISOR[swing.club]);
           }
         }
       }
@@ -896,41 +894,13 @@ export class Golfnado {
       }
     }
 
-    // filter swing path duplicate points
-    const finalSwingPath = [];
-    let count = 0;
-    let lastX = null;
-    let lastY = null;
-    let lastZ = null;
-    for (let swing of swingPath) {
-      if (
-        !lastX ||
-        !lastY ||
-        !lastZ ||
-        swing.point.x != lastX ||
-        swing.point.y != lastY ||
-        swing.height != lastZ
-      ) {
-        lastX = swing.point.x;
-        lastY = swing.point.y;
-        lastZ = swing.height;
-        finalSwingPath.push(swing);
-        continue;
-      }
-      count++;
-
-      if (count < 2) {
-        finalSwingPath.push(swing);
-      }
-    }
-
-    const endPoint = finalSwingPath[finalSwingPath.length - 1].point;
+    const endPoint = swingPath[swingPath.length - 1].point;
 
     return new Stroke(
       swing,
       startLocation,
       new Point2D(Math.round(endPoint.x), Math.round(endPoint.y)),
-      finalSwingPath
+      swingPath
     );
   }
 

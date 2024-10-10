@@ -29,6 +29,10 @@ function getBetterStat(
     return statOne;
   }
 
+  if (!statOne) {
+    return statTwo;
+  }
+
   if (useLowest) {
     return statOne.value <= statTwo.value ? statOne : statTwo;
   } else {
@@ -102,7 +106,7 @@ export function gatherPlayerStats(
   const playerId = game.players[playerIndex].id;
 
   let bestHole = game.maxStrokes;
-  let bestRound = game.maxStrokes * game.holes.length;
+  let bestRound = 0;
   let maxStrokesReached = 0;
   let timesLandedInSand = 0;
   let timesLandedInWater = 0;
@@ -178,6 +182,10 @@ export function gatherPlayerStats(
 }
 
 function addStats(statOne: NumberAndPlayerId, statTwo: NumberAndPlayerId) {
+  if (!statTwo) {
+    return { ...statOne };
+  }
+
   return {
     playerId: statOne.playerId,
     value: statOne.value + statTwo.value,
@@ -193,44 +201,44 @@ export function mergeStats(
   const newTotalStrokes =
     allTimeStats.totalStrokes.value + lastGameStats.totalStrokes.value;
   return {
-    games: addStats(allTimeStats.games, lastGameStats.games),
-    holes: addStats(allTimeStats.holes, lastGameStats.holes),
-    wins: addStats(allTimeStats.wins, lastGameStats.wins),
+    games: addStats(lastGameStats.games, allTimeStats.games),
+    holes: addStats(lastGameStats.holes, allTimeStats.holes),
+    wins: addStats(lastGameStats.wins, allTimeStats.wins),
     totalStrokes: addStats(
-      allTimeStats.totalStrokes,
-      lastGameStats.totalStrokes
+      lastGameStats.totalStrokes,
+      allTimeStats.totalStrokes
     ),
     bestHole: {
       value: Math.min(
-        allTimeStats.bestHole.value,
-        lastGameStats.bestHole.value
+        lastGameStats.bestHole.value,
+        allTimeStats.bestHole.value
       ),
       playerId,
     },
     bestRound: {
       value: Math.min(
-        allTimeStats.bestRound.value || Number.MAX_VALUE,
-        lastGameStats.bestRound.value
+        lastGameStats.bestRound.value,
+        allTimeStats.bestRound.value || Number.MAX_VALUE
       ),
       playerId,
     },
     averageStrokes: { value: newTotalStrokes / newTotalHoles, playerId },
     maxStrokesReached: addStats(
-      allTimeStats.maxStrokesReached,
-      lastGameStats.maxStrokesReached
+      lastGameStats.maxStrokesReached,
+      allTimeStats.maxStrokesReached
     ),
     timesLandedInWater: addStats(
-      allTimeStats.timesLandedInWater,
-      lastGameStats.timesLandedInWater
+      lastGameStats.timesLandedInWater,
+      allTimeStats.timesLandedInWater
     ),
     timesLandedInSand: addStats(
-      allTimeStats.timesLandedInSand,
-      lastGameStats.timesLandedInSand
+      lastGameStats.timesLandedInSand,
+      allTimeStats.timesLandedInSand
     ),
     longestHoleIn: {
       value: Math.max(
-        allTimeStats.longestHoleIn.value,
-        lastGameStats.longestHoleIn.value
+        lastGameStats.longestHoleIn.value,
+        allTimeStats.longestHoleIn.value
       ),
       playerId,
     },

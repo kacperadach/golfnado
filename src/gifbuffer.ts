@@ -324,6 +324,38 @@ export async function createSwingGifBuffer(
   }
 
   if (stroke) {
+    // filter swing path duplicate points
+    // const finalSwingPath = [];
+    // let count = 0;
+    // let lastX = null;
+    // let lastY = null;
+    // let lastZ = null;
+    // for (let swing of stroke.swingPath) {
+    //   const x = Math.round(swing.point.x);
+    //   const y = Math.round(swing.point.y);
+    //   const z = Math.round(swing.height);
+
+    //   if (
+    //     !lastX ||
+    //     !lastY ||
+    //     !lastZ ||
+    //     x != lastX ||
+    //     y != lastY ||
+    //     z != lastZ
+    //   ) {
+    //     lastX = x;
+    //     lastY = y;
+    //     lastZ = z;
+    //     finalSwingPath.push(swing);
+    //     continue;
+    //   }
+    //   count++;
+
+    //   if (count < (course.terrain[y][x] === Ground.GREEN ? 15 : 5)) {
+    //     finalSwingPath.push(swing);
+    //   }
+    // }
+
     stroke.swingPath.forEach((swingPoint, idx) => {
       if (swingPoint === undefined) {
         return;

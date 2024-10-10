@@ -123,7 +123,6 @@ async function archiveFinishedGame(env, context) {
     const player = currentGame.players[i];
 
     let playerStats = gatherPlayerStats(currentGame, i);
-    allPlayerStats.push(playerStats);
 
     const existingStats = await fetchPlayerStats(env, context, player.id);
 
@@ -131,12 +130,20 @@ async function archiveFinishedGame(env, context) {
       playerStats = mergeStats(existingStats, playerStats);
     }
 
+    allPlayerStats.push(playerStats);
+
     await upsertPlayerStats(env, context, player.id, playerStats);
   }
 
   let gameStats = gatherBestStats(allPlayerStats);
   const allTimeStats = await fetchAllTimeStats(env, context);
   if (allTimeStats) {
+    const allTimeAvgStrokesPlayer = allTimeStats.averageStrokes.playerId;
+
+    if (gameStats.averageStrokes.playerId === allTimeAvgStrokesPlayer) {
+      allTimeStats.averageStrokes.value = gameStats.averageStrokes.playerId;
+    }
+
     gameStats = gatherBestStats([allTimeStats, gameStats]);
   }
   upsertAllTimeStats(env, context, gameStats);
