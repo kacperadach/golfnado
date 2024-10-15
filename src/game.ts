@@ -80,7 +80,7 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.TEE_BOX]: 0.325,
     [Ground.GREEN]: 0.275,
     [Ground.FAIRWAY]: 0.275,
-    [Ground.ROUGH]: 0.13,
+    [Ground.ROUGH]: 0.16,
     [Ground.SAND]: 0.08,
     // irrelevant
     [Ground.UNDEFINED]: 1,
@@ -92,7 +92,7 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.TEE_BOX]: 0.18,
     [Ground.GREEN]: 0.18,
     [Ground.FAIRWAY]: 0.18,
-    [Ground.ROUGH]: 0.16,
+    [Ground.ROUGH]: 0.14,
     [Ground.SAND]: 0.15,
     // irrelevant
     [Ground.UNDEFINED]: 1,

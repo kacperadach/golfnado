@@ -1,19 +1,37 @@
+import { KVNamespace } from "@cloudflare/workers-types";
 import {
-  SlackApp,
-  SlackEdgeAppEnv,
+  SlackOAuthApp,
+  KVInstallationStore,
+  KVStateStore,
+  SlackOAuthAndOIDCEnv,
   isPostedMessageEvent,
+  ChatPostMessageRequest,
 } from "slack-cloudflare-workers";
-import { Course } from "./course";
-import { handleMessage, postSwingMessage } from "./slack";
+import { handleMessage, postHelpMessage, postSwingMessage } from "./slack";
 import { Golfnado } from "./game";
+
+type Env = SlackOAuthAndOIDCEnv & {
+  SLACK_INSTALLATIONS: KVNamespace;
+  SLACK_OAUTH_STATES: KVNamespace;
+};
 
 export default {
   async fetch(
     request: Request,
-    env: SlackEdgeAppEnv,
+    env: Env,
     ctx: ExecutionContext
   ): Promise<Response> {
-    const app = new SlackApp({ env })
+    const app = new SlackOAuthApp({
+      env,
+      installationStore: new KVInstallationStore(env, env.SLACK_INSTALLATIONS),
+      stateStore: new KVStateStore(env.SLACK_OAUTH_STATES),
+    })
+      .event("app_mention", async ({ context }) => {
+        await postHelpMessage(context);
+      })
+      .event("app_home_opened", async ({ payload, context }) => {
+        await postHelpMessage(context);
+      })
       .event("message", async ({ payload, context }) => {
         if (!isPostedMessageEvent(payload)) {
           return;
@@ -48,6 +66,41 @@ export default {
           });
 
           await handleMessage(env, context, swingMessage);
+        }
+      )
+      .action(
+        "join_game",
+        async () => {},
+        async ({ context, payload }) => {
+          await handleMessage(env, context, "join");
+        }
+      )
+      .action(
+        "start_game",
+        async () => {},
+        async ({ context, payload }) => {
+          await handleMessage(env, context, "start");
+        }
+      )
+      .action(
+        "new_game",
+        async () => {},
+        async ({ context, payload }) => {
+          await handleMessage(env, context, "new golfnado");
+        }
+      )
+      .action(
+        "request_private_swing",
+        async () => {},
+        async ({ context, payload }) => {
+          await postSwingMessage(env, context, context.userId);
+        }
+      )
+      .action(
+        "show_all_commands",
+        async () => {},
+        async ({ context, payload }) => {
+          await handleMessage(env, context, "help");
         }
       );
     return await app.run(request, ctx);

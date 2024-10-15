@@ -7,10 +7,11 @@ import {
   mergeStats,
   GolfnadoStats,
 } from "./stats";
+import { ChatPostMessageRequest } from "slack-cloudflare-workers";
 
-// const GOLFNADO_3D_DOMAIN = "golfnado.xyz";
-const GOLFNADO_3D_DOMAIN = "golfnado3d.pages.dev";
-
+const SPECIAL_WORKSPACE_ID = "TDUQJ4MMY";
+const GOLFNADO_3D_DOMAIN = "golfnado.xyz";
+const GOLFNADO_3D_DOMAIN_PAGES = "golfnado3d.pages.dev";
 const KEY_BASE = "golfnado-prod";
 
 function getKey(context) {
@@ -173,6 +174,20 @@ async function sendDefaultCourseGif(context, currentGame: Golfnado) {
   );
 }
 
+async function sendAnimatedCourseGif(
+  context,
+  course: Course,
+  stroke: Stroke,
+  playerColor: string,
+  otherBallPositions: BallPositionAndColor[]
+) {
+  if (context.teamId !== SPECIAL_WORKSPACE_ID) {
+    return;
+  }
+
+  await sendCourseGif(context, course, stroke, playerColor, otherBallPositions);
+}
+
 async function sendCourseGif(
   context,
   course: Course,
@@ -239,6 +254,47 @@ async function newGame(env, context) {
   await context.client.chat.postMessage({
     channel: context.channelId,
     text: `<@${context.userId}> has started a new golfnado! Join the tee time by typing \`join\`! Start round by typing \`start\`!`,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "New Golfnado! :golfer: :golf:",
+        },
+      },
+      {
+        type: "section",
+        text: {
+          text: `<@${context.userId}> has started a new golfnado!`,
+          type: "mrkdwn",
+        },
+      },
+      {
+        type: "divider",
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Join Tee Time!",
+            },
+            action_id: "join_game",
+          },
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Start Game!",
+            },
+            style: "primary",
+            action_id: "start_game",
+          },
+        ],
+      },
+    ],
   });
 }
 
@@ -300,16 +356,55 @@ async function startGame(env, context) {
   currentGame.startGame();
   await upsertGame(env, context, currentGame);
 
-  await sendDefaultCourseGif(context, currentGame);
   await context.client.chat.postMessage({
     channel: context.channelId,
-    text: `Game started! ${currentGame.holes.length} holes. ${
-      currentGame.maxStrokes
-    } swing max per hole. Good luck! <@${
-      currentGame.players[0].id
-    }> is up first! ${getWindMessage(currentGame)}`,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "Game started! :golfer: :golf:",
+        },
+      },
+      {
+        type: "section",
+        text: {
+          text: `${currentGame.holes.length} holes. ${currentGame.maxStrokes} swing max per hole. Good luck!`,
+          type: "mrkdwn",
+        },
+      },
+      {
+        type: "divider",
+      },
+      {
+        type: "section",
+        text: {
+          text: `<@${currentGame.players[0].id}><${get3dLink(
+            context.teamId,
+            context.channelId,
+            1,
+            1,
+            1
+          )}|  is up first!> ${getWindMessage(currentGame)}`,
+          type: "mrkdwn",
+        },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Use Private Swing",
+            },
+            action_id: "request_private_swing",
+          },
+        ],
+      },
+    ],
   });
-  await postSwingMessage(env, context, currentGame.players[0].id);
+  await sendDefaultCourseGif(context, currentGame);
 }
 
 function getBallPositionsAndColors(
@@ -349,7 +444,11 @@ function get3dLink(
   player: number,
   stroke: number
 ) {
-  return `https://${GOLFNADO_3D_DOMAIN}/${teamId}/${channelId}?hole=${hole}&player=${player}&stroke=${stroke}`;
+  return `https://${
+    teamId === SPECIAL_WORKSPACE_ID
+      ? GOLFNADO_3D_DOMAIN_PAGES
+      : GOLFNADO_3D_DOMAIN
+  }/${teamId}/${channelId}?hole=${hole}&player=${player}&stroke=${stroke}`;
 }
 
 async function swing(env, context, message: string) {
@@ -434,21 +533,65 @@ async function swing(env, context, message: string) {
 
     nextPlayerId = currentGame.getCurrentPlayer().id;
 
-    nextPlayerMessage += `<@${nextPlayerId}> is up next at ${
-      currentGame.getCurrentHole().strokes[
-        currentGame.getCurrentPlayerIndex(
-          currentGame.getCurrentHole(),
-          currentGame.holePlayerOrder[holeIndex]
-        )
-      ].length
-    } strokes! ${getWindMessage(currentGame)}`;
+    const nextPlayerIndex = currentGame.getCurrentPlayerIndex(
+      currentGame.getCurrentHole(),
+      currentGame.holePlayerOrder[holeIndex]
+    );
+
+    const nextPlayerStrokes =
+      currentGame.getCurrentHole().strokes[nextPlayerIndex].length;
+
+    nextPlayerMessage += `<@${nextPlayerId}> is up next at ${nextPlayerStrokes} strokes! <${get3dLink(
+      context.teamId,
+      context.channelId,
+      holeIndex + 1,
+      nextPlayerIndex + 1,
+      nextPlayerStrokes
+    )}|Previous Swing.> ${getWindMessage(currentGame)}`;
+
+    if (context.teamId !== SPECIAL_WORKSPACE_ID) {
+      await sendDefaultCourseGif(context, currentGame);
+    }
+  }
+
+  const blocks: any[] = [
+    {
+      type: "section",
+      text: {
+        text: `<@${context.userId}> <${golfnado3dLink}|Ball landed in ${
+          Ground[strokeResult.endGround]
+        }.>`,
+        type: "mrkdwn",
+      },
+    },
+  ];
+
+  if (nextPlayerMessage) {
+    blocks.push({
+      type: "section",
+      text: {
+        text: `${nextPlayerMessage}`,
+        type: "mrkdwn",
+      },
+    });
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "Use Private Swing",
+          },
+          action_id: "request_private_swing",
+        },
+      ],
+    });
   }
 
   await context.client.chat.postMessage({
     channel: context.channelId,
-    text: `<@${context.userId}> <${golfnado3dLink}|Ball landed in ${
-      Ground[strokeResult.endGround]
-    }.> ${nextPlayerMessage}`,
+    blocks,
   });
 
   if (nextPlayerId) {
@@ -462,7 +605,7 @@ async function swing(env, context, message: string) {
       currentPlayer.id
     );
 
-  await sendCourseGif(
+  await sendAnimatedCourseGif(
     context,
     strokeResult.hole.course,
     strokeResult.stroke,
@@ -473,7 +616,55 @@ async function swing(env, context, message: string) {
   if (currentGame.getCurrentHoleIndex() === null) {
     await context.client.chat.postMessage({
       channel: context.channelId,
-      text: `Game over\n${getScorecardText(currentGame)}`,
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: "Game over :trophy:",
+          },
+        },
+        {
+          type: "section",
+          text: {
+            text: getScorecardText(currentGame),
+            type: "mrkdwn",
+          },
+        },
+        {
+          type: "divider",
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "Golfnado is free. If you’ve enjoyed it, please consider supporting development and hosting. :green_heart: Thank you! :green_heart:",
+          },
+          accessory: {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Donate to support Golfnado",
+            },
+            url: "https://buymeacoffee.com/kacperadach",
+            style: "primary",
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "New Game!",
+              },
+              style: "primary",
+              action_id: "new_game",
+            },
+          ],
+        },
+      ],
     });
   } else if (currentGame.getCurrentHoleIndex() !== currentHoleIndex) {
     // const currentHole = currentGame.holes[currentGame.getCurrentHoleIndex()];
@@ -586,7 +777,29 @@ async function abortGolfnado(env, context) {
   if (!currentGame) {
     await context.client.chat.postMessage({
       channel: context.channelId,
-      text: `<@${context.userId}> There's no golfnado, book a tee time by typing \`new golfnado\`!`,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `<@${context.userId}> There's no golfnado being played!`,
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "New Game!",
+              },
+              style: "primary",
+              action_id: "new_game",
+            },
+          ],
+        },
+      ],
     });
     return;
   }
@@ -595,7 +808,30 @@ async function abortGolfnado(env, context) {
 
   await context.client.chat.postMessage({
     channel: context.channelId,
-    text: `<@${context.userId}> aborted the golfnado! To book a new tee time type \`new golfnado\``,
+    // text: `<@${context.userId}> aborted the golfnado! To book a new tee time type \`new golfnado\``,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "Golfnado Aborted! :x:",
+        },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "New Game!",
+            },
+            style: "primary",
+            action_id: "new_game",
+          },
+        ],
+      },
+    ],
   });
 }
 
@@ -665,33 +901,6 @@ async function crank(env, context) {
     text: getTotalScores(currentGame),
   });
 }
-
-// async function concede(env, context) {
-//   const currentGame = await getCurrentGame(env, context);
-//   if (!currentGame) {
-//     await context.client.chat.postMessage({
-//       channel: context.channelId,
-//       text: `<@${context.userId}> There's no golfnado, book a tee time by typing \`new golfnado\`!`,
-//     });
-//     return;
-//   }
-
-//   if (currentGame.gameState === GameState.NOT_STARTED) {
-//     await context.client.chat.postMessage({
-//       channel: context.channelId,
-//       text: `<@${context.userId}> Golfnado not started, to tee off type \`start\``,
-//     });
-//     return;
-//   }
-
-//   if (!currentGame.players.find((p) => p.id === context.userId)) {
-//     return;
-//   }
-
-//   currentGame.concedeHole(context.userId);
-
-//   await upsertGame(env, context, currentGame);
-// }
 
 async function reportWind(env, context) {
   const currentGame = await getCurrentGame(env, context);
@@ -807,6 +1016,230 @@ async function showHoleSwings(env, context) {
   });
 }
 
+export async function postHelpMessage(context) {
+  await context.client.chat.postMessage({
+    channel: context.channelId,
+    blocks: [
+      {
+        type: "header",
+        text: {
+          type: "plain_text",
+          text: "Welcome to Golfnado :golfer: :golf:",
+        },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: "A Free Slack-based 3D golf game",
+          },
+        ],
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `Play golf with your friends in slack. Start a new game and type to swing. Watch your swing on the official <${GOLFNADO_3D_DOMAIN}|golfnado website.>`,
+        },
+      },
+      {
+        type: "rich_text",
+        elements: [
+          {
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "text",
+                text: "Swing by choosing a club, power and direction. Available clubs are:",
+              },
+            ],
+          },
+          {
+            type: "rich_text_list",
+            elements: [
+              {
+                type: "rich_text_section",
+                elements: [
+                  {
+                    type: "text",
+                    text: "Driver",
+                    style: {
+                      bold: true,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: " - highest power but low accuracy, best to use from the Tee Box.",
+                  },
+                ],
+              },
+              {
+                type: "rich_text_section",
+                elements: [
+                  {
+                    type: "text",
+                    text: "Iron",
+                    style: {
+                      bold: true,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: " - medium power and accuracy, best to use from Fairway or Rough.",
+                  },
+                ],
+              },
+              {
+                type: "rich_text_section",
+                elements: [
+                  {
+                    type: "text",
+                    text: "Wedge",
+                    style: {
+                      bold: true,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: " - low power, high accuracy and high loft, best to use from Sand or short distances.",
+                  },
+                ],
+              },
+              {
+                type: "rich_text_section",
+                elements: [
+                  {
+                    type: "text",
+                    text: "Putter",
+                    style: {
+                      bold: true,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: " - low power, high accuracy and no loft, best to use on the Green.",
+                  },
+                ],
+              },
+            ],
+            style: "bullet",
+            indent: 0,
+            border: 1,
+          },
+        ],
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `\nPower is a number between 1-100 and direction is in degrees with 0 being straight ahead.`,
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `Try to stay on the course and out of water, sand or rough. Just like in real golf, lowest score wins!`,
+        },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "New Game!",
+            },
+            style: "primary",
+            action_id: "new_game",
+          },
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Show all commands",
+            },
+            action_id: "show_all_commands",
+          },
+        ],
+      },
+    ],
+  } as ChatPostMessageRequest);
+}
+
+const COMMANDS = [
+  ["new golfnado", "Create a new game."],
+  ["join", "Join a newly created game."],
+  ["start", "Start the newly created game."],
+  ["swing", "When it's your turn, swing at the ball."],
+  ["my swings", "Show all of your swings for the current hole"],
+  ["wind", "Show the wind on the current hole."],
+  ["rank", "Show current scorecard by hole."],
+  ["my stats", "Show your stats in this channel."],
+  ["stats", "Show all players best stats in this channel"],
+  ["abort golfnado", "End the current game"],
+];
+
+async function showCommands(env, context) {
+  const allCommands = [];
+  COMMANDS.forEach((command) => {
+    allCommands.push({
+      type: "rich_text_section",
+      elements: [
+        {
+          type: "text",
+          text: `${command[0]}`,
+          style: {
+            bold: true,
+          },
+        },
+        {
+          type: "text",
+          text: ` - ${command[1]}\n`,
+        },
+      ],
+    });
+  });
+
+  await context.client.chat.postMessage({
+    channel: context.channelId,
+    blocks: [
+      {
+        type: "rich_text",
+        elements: [
+          {
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "text",
+                text: "Available Golfnado Commands:",
+              },
+            ],
+          },
+          {
+            type: "rich_text_list",
+            elements: allCommands,
+            style: "bullet",
+            indent: 0,
+            border: 1,
+          },
+          {
+            type: "rich_text_section",
+            elements: [
+              {
+                type: "text",
+                text: "\nSimply type any of the commands into the channel chat.",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+}
+
 export async function handleMessage(env, context, message: string) {
   try {
     if (message.toLowerCase().startsWith("new golfnado")) {
@@ -833,6 +1266,8 @@ export async function handleMessage(env, context, message: string) {
       await reportWind(env, context);
     } else if (message.toLowerCase().startsWith("my swings")) {
       await showHoleSwings(env, context);
+    } else if (message.toLocaleLowerCase().startsWith("help")) {
+      await showCommands(env, context);
     }
     // else if (message.toLowerCase().startsWith("concede")) {
     //   await concede(env, context);

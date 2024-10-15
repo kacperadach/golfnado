@@ -93,10 +93,6 @@ export async function createSwingGifBuffer(
         let elevation = course.elevation[y][x].height;
         const slope: Slope = course.elevation[y][x].slope;
 
-        // r = getColorBasedOnElevation(r, elevation);
-        // g = getColorBasedOnElevation(g, elevation);
-        // b = getColorBasedOnElevation(b, elevation);
-
         for (let offsetY = 0; offsetY < ZOOM_RATIO; offsetY++) {
           for (let offsetX = 0; offsetX < ZOOM_RATIO; offsetX++) {
             let finalR = r;

@@ -2,6 +2,13 @@ name = "golfnado"
 main = "src/index.ts"
 compatibility_date = "2024-08-30"
 node_compat = true
+
+kv_namespaces = [
+  { binding = "SLACK_INSTALLATIONS", id = "3b21f0f52a6d41a2acb13f2e57ab2b19", preview_id = "fca85cc0126448e48d30f41bec8028c8" },
+  { binding = "SLACK_OAUTH_STATES", id = "b4c5b231e2504613a53431a1072c30ad", preview_id = "ccbfdd958e7a44ecbe4d5fcc2901f27a" },
+]
+
 [[r2_buckets]]
 binding = 'GOLFNADO_BUCKET' 
 bucket_name = 'golfnado'
+
