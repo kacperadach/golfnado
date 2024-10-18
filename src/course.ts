@@ -54,7 +54,7 @@ const MAX_ELEVATION_POINTS = 10;
 const MIN_ELEVATION_POINT_DISTANCE = 8;
 const SLOPE_DIFF = 0.5;
 
-const MAX_WIND = 0.8;
+export const MAX_WIND = 0.8;
 
 export enum Ground {
   UNDEFINED,
@@ -626,8 +626,6 @@ export class Course {
       hBound
     );
 
-    console.log(hBound, wBound, upperBound, lowerBound);
-
     const path: Point2D[] = [];
     path.push(
       new Point2D(this.getRandomInt(wBound, this.width - wBound), upperBound)
@@ -666,8 +664,6 @@ export class Course {
       );
       lastMove = move;
     }
-
-    console.log(path);
 
     return path;
   }

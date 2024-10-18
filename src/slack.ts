@@ -1,5 +1,5 @@
 import { Golfnado, GameState, Stroke, Swing, Club, Hole, Player } from "./game";
-import { Course, Ground, Point2D } from "./course";
+import { Course, Ground, MAX_WIND, Point2D } from "./course";
 import { BallPositionAndColor, createSwingGifBuffer } from "./gifbuffer";
 import {
   gatherPlayerStats,
@@ -149,8 +149,10 @@ async function archiveFinishedGame(env, context) {
   }
   upsertAllTimeStats(env, context, gameStats);
 
+  const archiveKey = getArchivedKey(context);
+
   await env.GOLFNADO_BUCKET.put(
-    getArchivedKey(context),
+    archiveKey,
     JSON.stringify(currentGame.toJSON()),
     {
       httpMetadata: {
@@ -160,6 +162,7 @@ async function archiveFinishedGame(env, context) {
   );
 
   await env.GOLFNADO_BUCKET.delete(getKey(context));
+  return archiveKey;
 }
 
 async function sendDefaultCourseGif(context, currentGame: Golfnado) {
@@ -181,7 +184,7 @@ async function sendAnimatedCourseGif(
   playerColor: string,
   otherBallPositions: BallPositionAndColor[]
 ) {
-  if (context.teamId !== SPECIAL_WORKSPACE_ID) {
+  if (true) {
     return;
   }
 
@@ -309,9 +312,15 @@ async function join(env, context) {
   }
 
   if (currentGame.players.find((p) => p.id === context.userId)) {
+    let messageText = `<@${context.userId}> You already joined the Golfnado!`;
+
+    if (currentGame.gameState === GameState.NOT_STARTED) {
+      messageText += ` Tee off by typing \`start\``;
+    }
+
     await context.client.chat.postMessage({
       channel: context.channelId,
-      text: `<@${context.userId}> You already joined the Golfnado! Tee off by typing \`start\``,
+      text: messageText,
     });
     return;
   }
@@ -385,7 +394,7 @@ async function startGame(env, context) {
             1,
             1,
             1
-          )}|  is up first!> ${getWindMessage(currentGame)}`,
+          )}|  is up first!>\n ${getWindMessage(currentGame)}`,
           type: "mrkdwn",
         },
       },
@@ -432,9 +441,37 @@ function getBallPositionsAndColors(
 }
 
 function getWindMessage(game: Golfnado) {
-  return `Wind ${(game.getCurrentHole().course.wind.velocity * 12).toFixed(
-    1
-  )}MPH at ${game.getCurrentHole().course.wind.direction} degrees.`;
+  const windVelocity = game.getCurrentHole().course.wind.velocity;
+
+  const threshold = MAX_WIND / 4;
+
+  let windEmojiNumber;
+  let windDescription;
+  if (windVelocity <= threshold) {
+    windDescription = "Gentle Breeze";
+    windEmojiNumber = 1;
+  } else if (windVelocity <= threshold * 2) {
+    windDescription = "Steady Wind";
+    windEmojiNumber = 2;
+  } else if (windVelocity <= threshold * 3) {
+    windDescription = "Strong Gusts";
+    windEmojiNumber = 3;
+  } else {
+    windDescription = "HURRICANE CONDITIONS";
+    windEmojiNumber = 4;
+  }
+
+  return `Wind: ${":dash:".repeat(
+    windEmojiNumber
+  )} ${windDescription} ${":dash:".repeat(windEmojiNumber)} ${(
+    windVelocity * 125
+  ).toFixed(1)}MPH at ${game.getCurrentHole().course.wind.direction} degrees.`;
+}
+
+function getDomain(teamId) {
+  return teamId === SPECIAL_WORKSPACE_ID
+    ? GOLFNADO_3D_DOMAIN_PAGES
+    : GOLFNADO_3D_DOMAIN;
 }
 
 function get3dLink(
@@ -444,11 +481,9 @@ function get3dLink(
   player: number,
   stroke: number
 ) {
-  return `https://${
-    teamId === SPECIAL_WORKSPACE_ID
-      ? GOLFNADO_3D_DOMAIN_PAGES
-      : GOLFNADO_3D_DOMAIN
-  }/${teamId}/${channelId}?hole=${hole}&player=${player}&stroke=${stroke}`;
+  return `https://${getDomain(
+    teamId
+  )}/${teamId}/${channelId}?hole=${hole}&player=${player}&stroke=${stroke}`;
 }
 
 async function swing(env, context, message: string) {
@@ -482,7 +517,29 @@ async function swing(env, context, message: string) {
   if (!currentPlayer || currentPlayer.id !== context.userId) {
     await context.client.chat.postMessage({
       channel: context.channelId,
-      text: `<@${context.userId}> not your turn, it's <@${currentPlayer?.id}>'s turn!`,
+      // text: `<@${context.userId}> not your turn, it's <@${currentPlayer?.id}>'s turn!`,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            text: `<@${context.userId}> not your turn, it's <@${currentPlayer?.id}>'s turn!`,
+            type: "mrkdwn",
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "Use Private Swing",
+              },
+              action_id: "request_private_swing",
+            },
+          ],
+        },
+      ],
     });
     return;
   }
@@ -491,9 +548,31 @@ async function swing(env, context, message: string) {
   if (!swing) {
     await context.client.chat.postMessage({
       channel: context.channelId,
-      text: `<@${context.userId}> Invalid swing, format:\n \`swing {driver|iron|wedge|putter} {power (1-100)} {direction (in degrees)}\``,
+      // text: `<@${context.userId}> Invalid swing, format:\n \`swing {driver|iron|wedge|putter} {power (1-100)} {direction (in degrees)}\``,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            text: `<@${context.userId}> Invalid swing, format:\n \`swing {driver|iron|wedge|putter} {power (1-100)} {direction (in degrees)}\``,
+            type: "mrkdwn",
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "Use Private Swing",
+              },
+              action_id: "request_private_swing",
+            },
+          ],
+        },
+      ],
     });
-    await postSwingMessage(env, context, context.userId);
+    // await postSwingMessage(env, context, context.userId);
     return;
   }
 
@@ -508,8 +587,9 @@ async function swing(env, context, message: string) {
 
   await upsertGame(env, context, currentGame);
 
+  let archiveKey;
   if (strokeResult.gameState === GameState.GAME_OVER) {
-    await archiveFinishedGame(env, context);
+    archiveKey = await archiveFinishedGame(env, context);
   }
 
   const currentPlayerIndex = currentGame.players.findIndex(
@@ -541,17 +621,28 @@ async function swing(env, context, message: string) {
     const nextPlayerStrokes =
       currentGame.getCurrentHole().strokes[nextPlayerIndex].length;
 
-    nextPlayerMessage += `<@${nextPlayerId}> is up next at ${nextPlayerStrokes} strokes! <${get3dLink(
-      context.teamId,
-      context.channelId,
-      holeIndex + 1,
-      nextPlayerIndex + 1,
-      nextPlayerStrokes
-    )}|Previous Swing.> ${getWindMessage(currentGame)}`;
+    nextPlayerMessage += `<@${nextPlayerId}> is up next at ${nextPlayerStrokes} strokes! `;
 
-    if (context.teamId !== SPECIAL_WORKSPACE_ID) {
-      await sendDefaultCourseGif(context, currentGame);
+    if (nextPlayerStrokes > 0) {
+      nextPlayerMessage += `<${get3dLink(
+        context.teamId,
+        context.channelId,
+        holeIndex + 1,
+        nextPlayerIndex + 1,
+        nextPlayerStrokes
+      )}|Previous Swing.> `;
     }
+
+    nextPlayerMessage += `\n\n${getWindMessage(currentGame)}`;
+
+    await sendDefaultCourseGif(context, currentGame);
+    // await sendCourseGif(
+    //   context,
+    //   strokeResult.hole.course,
+    //   null,
+    //   "",
+    //   getBallPositionsAndColors(strokeResult.hole, currentGame.players, null)
+    // );
   }
 
   const blocks: any[] = [
@@ -594,24 +685,24 @@ async function swing(env, context, message: string) {
     blocks,
   });
 
-  if (nextPlayerId) {
-    await postSwingMessage(env, context, nextPlayerId);
-  }
+  // if (nextPlayerId) {
+  //   await postSwingMessage(env, context, nextPlayerId);
+  // }
 
-  const ballPositionsAndColors: BallPositionAndColor[] =
-    getBallPositionsAndColors(
-      currentHole,
-      currentGame.players,
-      currentPlayer.id
-    );
+  // const ballPositionsAndColors: BallPositionAndColor[] =
+  //   getBallPositionsAndColors(
+  //     currentHole,
+  //     currentGame.players,
+  //     currentPlayer.id
+  //   );
 
-  await sendAnimatedCourseGif(
-    context,
-    strokeResult.hole.course,
-    strokeResult.stroke,
-    currentPlayer.color,
-    ballPositionsAndColors
-  );
+  // await sendAnimatedCourseGif(
+  //   context,
+  //   strokeResult.hole.course,
+  //   strokeResult.stroke,
+  //   currentPlayer.color,
+  //   ballPositionsAndColors
+  // );
 
   if (currentGame.getCurrentHoleIndex() === null) {
     await context.client.chat.postMessage({
@@ -628,6 +719,15 @@ async function swing(env, context, message: string) {
           type: "section",
           text: {
             text: getScorecardText(currentGame),
+            type: "mrkdwn",
+          },
+        },
+        {
+          type: "section",
+          text: {
+            text: `<https://${
+              getDomain(context.teamId) + archiveKey.replace(KEY_BASE, "")
+            }|View finished game here.>`,
             type: "mrkdwn",
           },
         },
@@ -668,7 +768,7 @@ async function swing(env, context, message: string) {
     });
   } else if (currentGame.getCurrentHoleIndex() !== currentHoleIndex) {
     // const currentHole = currentGame.holes[currentGame.getCurrentHoleIndex()];
-    await sendDefaultCourseGif(context, currentGame);
+    // await sendDefaultCourseGif(context, currentGame);
   }
 }
 
