@@ -1,19 +1,25 @@
 {
-  "name": "golfnado",
+  "name": "golfnado-discord",
   "version": "0.0.0",
+  "type": "module",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240821.1",
     "@types/node": "^22.7.4",
+    "dotenv": "^16.4.5",
     "typescript": "^5.5.4",
     "wrangler": "^3.78.3"
   },
   "private": true,
   "scripts": {
-    "start": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev:slack": "cd slack && wrangler dev --port 3000",
+    "dev:discord": "cd discord && wrangler dev --port 3000",
+    "dev:all": "npm run dev:slack & npm run dev:discord"
   },
   "dependencies": {
+    "discord-interactions": "^4.1.0",
     "gifencoder": "^2.0.1",
+    "itty-router": "^5.0.18",
+    "pngjs": "^7.0.0",
     "slack-cloudflare-workers": "^1.0.0"
   }
 }
