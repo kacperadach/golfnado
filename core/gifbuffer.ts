@@ -23,6 +23,7 @@ const GROUND_TO_RGB_MAP = {
   [Ground.WATER]: { r: 59, g: 53, b: 205 }, // Blue
   [Ground.SAND]: { r: 205, g: 205, b: 53 }, // Yellow
   [Ground.TEE_BOX]: { r: 223, g: 223, b: 223 }, // Light Gray
+  [Ground.TREE]: { r: 6, g: 132, b: 25 },
   default: { r: 0, g: 0, b: 0 }, // Black for unknown terrain
 };
 
@@ -190,7 +191,8 @@ export async function createSwingGifBuffer(
                 terrain[y][x] === Ground.SAND ||
                 terrain[y][x] === Ground.WATER ||
                 terrain[y][x] === Ground.HOLE ||
-                terrain[y][x] === Ground.TEE_BOX
+                terrain[y][x] === Ground.TEE_BOX ||
+                terrain[y][x] === Ground.TREE
               ) {
                 finalR = r;
                 finalG = g;

@@ -9,7 +9,7 @@ const AIR_RESISTANCE_DRAG_RATIO = 0.05;
 const MIN_VELOCITY = 0.1;
 const BOUNCE_THRESHOLD = 4;
 const VELOCITY_POSITION_DELTA_DIVISOR = 10;
-const SLOPE_VELOCITY = 0.6;
+const SLOPE_VELOCITY = 1.5;
 const WIND_HEIGHT_THRESHOLD = 3;
 
 const BALL_COLORS = {
@@ -61,6 +61,7 @@ const GROUND_ACCURACY_RATIO = {
   [Ground.UNDEFINED]: 1,
   [Ground.HOLE]: 1,
   [Ground.WATER]: 1,
+  [Ground.TREE]: 1,
 };
 
 const CLUB_TERRAIN_POWER_RATIO = {
@@ -75,6 +76,7 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.HOLE]: 1,
     [Ground.WATER]: 1,
     [Ground.BALL]: 1,
+    [Ground.TREE]: 1,
   },
   [Club.IRON]: {
     [Ground.TEE_BOX]: 0.325,
@@ -87,6 +89,7 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.HOLE]: 1,
     [Ground.WATER]: 1,
     [Ground.BALL]: 1,
+    [Ground.TREE]: 1,
   },
   [Club.WEDGE]: {
     [Ground.TEE_BOX]: 0.18,
@@ -99,6 +102,7 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.HOLE]: 1,
     [Ground.WATER]: 1,
     [Ground.BALL]: 1,
+    [Ground.TREE]: 1,
   },
   [Club.PUTTER]: {
     [Ground.TEE_BOX]: 0.09,
@@ -112,6 +116,7 @@ const CLUB_TERRAIN_POWER_RATIO = {
     [Ground.HOLE]: 1,
     [Ground.WATER]: 1,
     [Ground.BALL]: 1,
+    [Ground.TREE]: 1,
   },
 };
 
@@ -125,6 +130,7 @@ const GROUND_SPEED_SUBTRACTION = {
   [Ground.FAIRWAY]: 0.25,
   [Ground.GREEN]: 0.06,
   [Ground.TEE_BOX]: 0,
+  [Ground.TREE]: 0,
 };
 
 const CLUB_Z_ANGLE = {
@@ -143,6 +149,7 @@ const GROUND_BOUNCE_RATIO = {
   [Ground.UNDEFINED]: 0,
   [Ground.HOLE]: 0,
   [Ground.BALL]: 0,
+  [Ground.TREE]: 0,
 };
 
 function adjustDirection(
@@ -343,6 +350,16 @@ class Vector3D {
   // Move the ball by 1 unit in the direction of its velocity
   move(): Vector3D {
     return this.normalize(); // Moves 1 unit in the current direction
+  }
+
+  // Subtract another Vector3D from this vector
+  subtract(v) {
+    return new Vector3D(this.x - v.x, this.y - v.y, this.z - v.z);
+  }
+
+  // Dot product of this vector and another vector
+  dot(v) {
+    return this.x * v.x + this.y * v.y + this.z * v.z;
   }
 }
 
@@ -673,12 +690,21 @@ export class Golfnado {
       const newX = Math.round(positionVector.x);
       const newY = Math.round(positionVector.y);
 
+      let newGround = Ground.UNDEFINED;
+      try {
+        newGround =
+          course.terrain[Math.round(ballPositionVector.y)][
+            Math.round(ballPositionVector.x)
+          ];
+      } catch (error) {}
+
       let elevation = 0;
       if (
         newX >= 0 &&
         newX < course.width &&
         newY >= 0 &&
-        newY < course.height
+        newY < course.height &&
+        newGround !== Ground.TREE
       ) {
         elevation = course.elevation[newY][newX].height;
       }
@@ -721,6 +747,7 @@ export class Golfnado {
       let frictionVector = new Vector3D(0, 0, 0);
       let bounceVector = new Vector3D(0, 0, 0);
       let airVector = new Vector3D(0, 0, 0);
+      let treeBounce = new Vector3D(0, 0, 0);
 
       if (ballPosition.z > newElevation.height) {
         // console.log("air resistance");
@@ -738,21 +765,28 @@ export class Golfnado {
             0
           );
         }
-      } else {
+      } else if (newGround !== Ground.TREE) {
+        let frictionX =
+          -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround];
+        let frictionY =
+          -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround];
+
         if (
-          newElevation.slope === "flat" ||
-          newGround === Ground.HOLE ||
-          GROUND_SPEED_SUBTRACTION[newGround] === 1
+          newElevation.slope !== "flat" &&
+          GROUND_SPEED_SUBTRACTION[newGround] !== 1 &&
+          newGround !== Ground.HOLE
         ) {
-          frictionVector = new Vector3D(
-            -1 * ballVelocity.x * GROUND_SPEED_SUBTRACTION[newGround],
-            -1 * ballVelocity.y * GROUND_SPEED_SUBTRACTION[newGround],
-            0
-          );
-        } else {
-          const slopeVelocityMagnitude =
-            SLOPE_VELOCITY -
-            SLOPE_VELOCITY * GROUND_SPEED_SUBTRACTION[newGround];
+          frictionX /= 2;
+          frictionY /= 2;
+        }
+
+        frictionVector = new Vector3D(frictionX, frictionY, 0);
+
+        if (
+          GROUND_SPEED_SUBTRACTION[newGround] !== 1 &&
+          newGround !== Ground.HOLE
+        ) {
+          const slopeVelocityMagnitude = SLOPE_VELOCITY;
 
           if (newElevation.slope === "horizontal") {
             let leftHeight = newElevation.height;
@@ -768,11 +802,9 @@ export class Golfnado {
 
             if (leftHeight > rightHeight) {
               // move right
-              // console.log("slope right");
               slopeVector = new Vector3D(slopeVelocityMagnitude, 0, 0);
             } else if (rightHeight > leftHeight) {
               // move left
-              // console.log("slope left");
               slopeVector = new Vector3D(-slopeVelocityMagnitude, 0, 0);
             }
           } else if (newElevation.slope === "vertical") {
@@ -791,7 +823,7 @@ export class Golfnado {
               // move down
               slopeVector = new Vector3D(0, slopeVelocityMagnitude, 0);
             } else if (downHeight > upHeight) {
-              // move left
+              // move up
               slopeVector = new Vector3D(0, -slopeVelocityMagnitude, 0);
             }
           }
@@ -817,28 +849,62 @@ export class Golfnado {
         }
       }
 
+      // if ball is on TREE and not above it, bounce it
+      if (newGround === Ground.TREE && newElevation.height >= ballPosition.z) {
+        // bounce on X/Y axis
+        // Calculate direction vector from ball to tree
+        let toTree = ballPosition.subtract(
+          new Vector3D(
+            Math.round(ballPosition.x) + 0.5,
+            Math.round(ballPosition.y) + 0.5,
+            ballPosition.z
+          )
+        );
+
+        // Normalize the direction vector to get a unit vector (normal)
+        let normal = toTree.normalize();
+
+        // Reflect the ball's velocity off the tree surface
+        let velocityDotNormal = ballVelocity.dot(normal);
+        // let reflectedVelocity = ballVelocity.subtract(
+        //   normal.multiplyScalar(2 * velocityDotNormal)
+        // );
+
+        let reflectedVelocity = normal.multiplyScalar(2 * velocityDotNormal);
+        reflectedVelocity = reflectedVelocity.multiplyScalar(0.9);
+        reflectedVelocity.x = -1 * reflectedVelocity.x;
+        reflectedVelocity.y = -1 * reflectedVelocity.y;
+        reflectedVelocity.z = 0;
+
+        treeBounce = reflectedVelocity;
+        console.log(ballVelocity, treeBounce);
+      }
+
       return new Vector3D(
         windVector.x +
           slopeVector.x +
           frictionVector.x +
           bounceVector.x +
-          airVector.x,
+          airVector.x +
+          treeBounce.x,
         windVector.y +
           slopeVector.y +
           frictionVector.y +
           bounceVector.y +
-          airVector.y,
+          airVector.y +
+          treeBounce.y,
         windVector.z +
           slopeVector.z +
           frictionVector.z +
           bounceVector.z +
-          airVector.z
+          airVector.z +
+          treeBounce.z
       );
     }
 
     let iterations = 0;
     while (
-      iterations < 1000 &&
+      iterations < 150 &&
       (ballVelocityVector.x !== 0 ||
         ballVelocityVector.y !== 0 ||
         ballVelocityVector.z !== 0)
@@ -858,12 +924,22 @@ export class Golfnado {
           ];
       } catch (error) {}
 
-      ballPositionVector.z = Math.max(
-        ballPositionVector.z,
-        newElevation?.height || 0
-      );
+      let newGround = Ground.UNDEFINED;
+      try {
+        newGround =
+          course.terrain[Math.round(ballPositionVector.y)][
+            Math.round(ballPositionVector.x)
+          ];
+      } catch (error) {}
 
-      if (ballVelocityVector.z === 0) {
+      if (newGround !== Ground.TREE) {
+        ballPositionVector.z = Math.max(
+          ballPositionVector.z,
+          newElevation?.height || 0
+        );
+      }
+
+      if (ballVelocityVector.z === 0 && newGround !== Ground.TREE) {
         // ball has no z velocity so it is rolling, move it to the new elevation of ground
         ballPositionVector.z = newElevation?.height || 0;
       }

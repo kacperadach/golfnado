@@ -50,9 +50,22 @@ const ISLAND_WATER_RADIUS_MIN = 10;
 
 const MAX_ELEVATION = 15;
 const MIN_ELEVATION_POINTS = 5;
-const MAX_ELEVATION_POINTS = 10;
+const MAX_ELEVATION_POINTS = 12;
 const MIN_ELEVATION_POINT_DISTANCE = 8;
 const SLOPE_DIFF = 0.5;
+
+const TREE_MIN_SPAWN_RADIUS = 8;
+const TREE_MAX_SPAWN_RADIUS = 15;
+const TREE_MIN_DISTANCE = 4;
+const TREE_MIN_ORIGINS = 5;
+const TREE_MAX_ORIGINS = 12;
+const TREE_MIN_HEIGHT = 20;
+const TREE_MAX_HEIGHT = 40;
+const MAX_TREES_PER_PATCH = 12;
+
+const MAX_TREE_PATCHES = 3;
+const MIN_TREE_PATCH_RADIUS = 5;
+const MAX_TREE_PATCH_RADIUS = 10;
 
 export const MAX_WIND = 0.8;
 
@@ -66,6 +79,7 @@ export enum Ground {
   WATER,
   BALL,
   TEE_BOX,
+  TREE,
 }
 
 export class Point2D {
@@ -367,6 +381,11 @@ export class Course {
       MAX_ELEVATION_POINTS
     );
 
+    const maxElevation = this.getRandomInt(
+      Math.round(MAX_ELEVATION / 2.5),
+      MAX_ELEVATION
+    );
+
     const elevationPoints = [];
 
     // prevent infinite loop
@@ -388,7 +407,7 @@ export class Course {
 
       elevationPoints.push({
         point: randomPoint,
-        height: this.getRandomInt(0, MAX_ELEVATION),
+        height: this.getRandomInt(0, maxElevation),
       });
     }
 
@@ -556,6 +575,7 @@ export class Course {
     );
 
     this.addIsland(paths);
+    const trees = this.addTrees(paths);
 
     this.generateTerrain(
       basePath[basePath.length - 1],
@@ -565,24 +585,42 @@ export class Course {
     );
 
     this.teeBoxPoint = basePath[basePath.length - 1];
-    // this.terrain[basePath[basePath.length - 1].y][
-    //   basePath[basePath.length - 1].x
-    // ] = Ground.BALL;
 
     const greenRadius = this.getRandomInt(
       HOLE_GREEN_RADIUS_MIN,
       HOLE_GREEN_RADIUS_MAX
     );
 
-    const path = paths[this.getRandomInt(0, paths.length - 1)];
-    const pathTwo = paths[this.getRandomInt(0, paths.length - 1)];
+    // const path = paths[this.getRandomInt(0, paths.length - 1)];
+    // const pathTwo = paths[this.getRandomInt(0, paths.length - 1)];
 
-    const holePositionOne = path[this.getRandomInt(0, 2)];
-    const holePositionTwo = pathTwo[this.getRandomInt(0, 2)];
-    let holePosition = new Point2D(
-      Math.round((holePositionOne.x + holePositionTwo.x) / 2),
-      Math.round((holePositionOne.y + holePositionTwo.y) / 2)
-    );
+    // const holePositionOne = path[this.getRandomInt(0, 2)];
+    // const holePositionTwo = pathTwo[this.getRandomInt(0, 2)];
+    // let holePosition = new Point2D(
+    //   Math.round((holePositionOne.x + holePositionTwo.x) / 2),
+    //   Math.round((holePositionOne.y + holePositionTwo.y) / 2)
+    // );
+
+    function calculateDistance(p1, p2) {
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    let holePosition = basePath[0];
+    for (const path of paths) {
+      if (!holePosition) {
+        holePosition = path[1];
+        continue;
+      }
+
+      if (
+        calculateDistance(holePosition, this.teeBoxPoint) <
+        calculateDistance(path[1], this.teeBoxPoint)
+      ) {
+        holePosition = path[1];
+      }
+    }
 
     holePosition = new Point2D(
       Math.min(Math.max(holePosition.x, greenRadius), this.width - greenRadius),
@@ -606,10 +644,180 @@ export class Course {
 
     this.holePoint = holePosition;
 
-    // this.terrain[basePath[0].y][basePath[0].x] = Ground.HOLE;
-    // this.terrain[basePath[0].y - 1][basePath[0].x] = Ground.FLAG_BASE;
-    // this.terrain[basePath[0].y - 2][basePath[0].x] = Ground.FLAG_BASE;
-    // this.terrain[basePath[0].y - 2][basePath[0].x + 1] = Ground.FLAG;
+    trees.forEach((tree) => {
+      if (this.terrain[tree.y][tree.x] !== Ground.TREE) {
+        return;
+      }
+
+      const elevation = {
+        ...this.elevation[tree.y][tree.x],
+      };
+      elevation.height += this.getRandomInt(TREE_MIN_HEIGHT, TREE_MAX_HEIGHT);
+      this.elevation[tree.y][tree.x] = elevation;
+    });
+  }
+
+  private addTrees(paths: Point2D[][]): any[] {
+    function findRoughPoints(terrain) {
+      const roughPoints = [];
+
+      // Loop through each row of the array
+      for (let y = 0; y < terrain.length; y++) {
+        // Loop through each column of the row
+        for (let x = 0; x < terrain[y].length; x++) {
+          // Check if the value is Ground.ROUGH
+          if (terrain[y][x] === Ground.ROUGH) {
+            roughPoints.push({ x, y });
+          }
+        }
+      }
+
+      return roughPoints;
+    }
+
+    const roughPoints = findRoughPoints(this.terrain);
+    if (roughPoints.length === 0) {
+      return;
+    }
+
+    function getRandomPoints(points, n) {
+      const shuffled = [...points]; // Copy the points array to avoid modifying the original
+      let i = points.length;
+      let temp, randomIndex;
+
+      // While there are elements to shuffle
+      while (i--) {
+        randomIndex = Math.floor(Math.random() * (i + 1)); // Get a random index
+        // Swap the current element with the random element
+        temp = shuffled[i];
+        shuffled[i] = shuffled[randomIndex];
+        shuffled[randomIndex] = temp;
+      }
+
+      // Return the first N elements from the shuffled array
+      return shuffled.slice(0, n);
+    }
+
+    const treeSpawns = getRandomPoints(
+      roughPoints,
+      this.getRandomInt(TREE_MIN_ORIGINS, TREE_MAX_ORIGINS)
+    );
+
+    // Function to spawn trees within a given radius and ensure minimum distance
+    function spawnTrees(
+      origin,
+      treeSpawnRadius,
+      treeMinDistance,
+      terrain,
+      maxTrees,
+      allTrees
+    ) {
+      function calculateDistance(p1, p2) {
+        const dx = p1.x - p2.x;
+        const dy = p1.y - p2.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+      const trees = [];
+      const maxAttempts = 100; // Limit to avoid infinite loop
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const angle = Math.random() * 2 * Math.PI; // Random angle
+        const distance = Math.random() * treeSpawnRadius; // Random distance within the radius
+
+        // Calculate the tree position based on random distance and angle
+        let treeX = Math.round(origin.x + Math.cos(angle) * distance);
+        let treeY = Math.round(origin.y + Math.sin(angle) * distance);
+
+        if (
+          treeY < 0 ||
+          treeY > terrain.length - 1 ||
+          treeX < 0 ||
+          treeX > terrain[0].length - 1 ||
+          terrain[treeY][treeX] !== Ground.ROUGH
+        ) {
+          continue;
+        }
+
+        // Check if the tree is far enough from existing trees
+        let validPosition = true;
+        for (const tree of trees) {
+          if (
+            calculateDistance(tree, { x: treeX, y: treeY }) < treeMinDistance
+          ) {
+            validPosition = false;
+            break;
+          }
+        }
+        if (validPosition) {
+          for (const tree of allTrees) {
+            if (
+              calculateDistance(tree, { x: treeX, y: treeY }) < treeMinDistance
+            ) {
+              validPosition = false;
+              break;
+            }
+          }
+        }
+
+        // If valid position, add the tree
+        if (validPosition) {
+          trees.push({ x: treeX, y: treeY });
+        }
+
+        // Stop if we've generated enough trees
+        if (trees.length >= maxTrees) {
+          // Random between 3 and 5 trees
+          break;
+        }
+      }
+
+      return trees;
+    }
+
+    // Loop through the random tree spawns and generate trees
+    const allTrees = [];
+    for (const spawn of treeSpawns) {
+      const trees = spawnTrees(
+        spawn,
+        this.getRandomInt(TREE_MIN_SPAWN_RADIUS, TREE_MAX_SPAWN_RADIUS),
+        TREE_MIN_DISTANCE,
+        this.terrain,
+        MAX_TREES_PER_PATCH,
+        allTrees
+      );
+      allTrees.push(...trees);
+    }
+
+    const numPatches = this.getRandomInt(MAX_TREE_PATCHES, MAX_TREE_PATCHES);
+    for (let i = 0; i < numPatches; i++) {
+      // add a tree patch in middle of path
+      const selectedPath = paths[this.getRandomInt(0, paths.length - 1)];
+      const pathPoint = this.getRandomInt(0, Math.ceil(selectedPath.length));
+
+      this.generateTerrain(
+        selectedPath[pathPoint],
+        this.getRandomInt(MIN_TREE_PATCH_RADIUS, MAX_TREE_PATCH_RADIUS),
+        this.getRandomInt(MIN_TREE_PATCH_RADIUS, MAX_TREE_PATCH_RADIUS),
+        Ground.ROUGH
+      );
+
+      allTrees.push(
+        ...spawnTrees(
+          { x: selectedPath[pathPoint].x, y: selectedPath[pathPoint].y },
+          MAX_TREE_PATCH_RADIUS,
+          TREE_MIN_DISTANCE * (2 / 3),
+          this.terrain,
+          100,
+          allTrees
+        )
+      );
+    }
+
+    allTrees.forEach((tree) => {
+      this.terrain[tree.y][tree.x] = Ground.TREE;
+    });
+
+    return allTrees;
   }
 
   private initializeArray(): void {

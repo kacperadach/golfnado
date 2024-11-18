@@ -479,6 +479,14 @@ async function swing(env, messager: Messager, message: string) {
         nextPlayerIndex + 1,
         nextPlayerStrokes
       )}|Previous Swing.> `;
+    } else {
+      nextPlayerMessage += `<${get3dLink(
+        messager.getTeamId(),
+        messager.getChannelId(),
+        holeIndex + 1,
+        0,
+        0
+      )}|Hole ${holeIndex + 1}.> `;
     }
 
     nextPlayerMessage += `\n\n${getWindMessage(currentGame)}`;
@@ -1209,7 +1217,7 @@ export async function handleMessage(env, messager: Messager, message: string) {
   } catch (error) {
     await messager.sendMessage(
       messager.getChannelId(),
-      `Unexpected error ${error}`
+      `Unexpected error ${error}: ${error.stack}`
     );
     // throw error;
   }

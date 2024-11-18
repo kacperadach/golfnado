@@ -1,5 +1,6 @@
 import { SlackAppContext } from "slack-cloudflare-workers";
 import { Messager } from "../core/messager";
+import { uploadCourseImage } from "../core/r2";
 
 export class SlackAdapter implements Messager {
   private context: SlackAppContext;
@@ -62,21 +63,17 @@ export class SlackAdapter implements Messager {
       filename: "image.gif",
       length: buffer.byteLength,
     });
-
     const { upload_url, file_id } = uploadUrl;
-
     const formData = new FormData();
     formData.append(
       "file",
       new Blob([buffer], { type: "image/gif" }),
       "image.gif"
     );
-
     await fetch(upload_url, {
       method: "POST",
       body: formData,
     });
-
     await this.context.client.files.completeUploadExternal({
       channel_id: channelId,
       files: [{ id: file_id, title: "image.gif" }],
